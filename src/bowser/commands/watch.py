@@ -8,7 +8,7 @@ from ..backends.base import BowserBackend
 from .di import provide_Executor
 
 _Callback = Callable[[], None]
-_ActionWithCallback = Callable[[Path, _Callback], None]
+_AsyncAction = Callable[[Path, _Callback], None]
 
 
 def _async_multicall(
@@ -55,10 +55,10 @@ def execute(
 
 class FileSystemWatcher:
 
-    def __init__(self, action: _ActionWithCallback) -> None:
+    def __init__(self, action: _AsyncAction) -> None:
         self._ready_sentinel = Path(".bowser.ready")
         self._complete_sentinel = Path(".bowser.complete")
-        self._action: _ActionWithCallback = action
+        self._action: _AsyncAction = action
 
     def watch(self, root: Path, polling_interval: int):
         logging.info("Watching %s for subtrees marked ready...", root)
