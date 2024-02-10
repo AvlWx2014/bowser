@@ -1,11 +1,32 @@
 import logging
 from collections.abc import Callable, Collection
+from concurrent.futures import Executor, as_completed
 from pathlib import Path
 from time import sleep
 
 from ..backends.base import BowserBackend
+from .di import provide_Executor
 
-_ActionWithCallback = Callable[[Path, Callable[[], None]], None]
+_Callback = Callable[[], None]
+_ActionWithCallback = Callable[[Path, _Callback], None]
+
+
+def _async_multicall(
+    backends: Collection[BowserBackend],
+    source: Path,
+    executor: Executor | None = None,
+    callback: Callable[[], None] | None = None,
+):
+    if executor is None:
+        executor = provide_Executor()
+
+    futures = [executor.submit(backend.sync, source) for backend in backends]
+    for future in as_completed(futures):
+        if (exception := future.exception()) is not None:
+            logging.error("Exception in backend sync operation\n%s", exception)
+
+    if callback is not None:
+        callback()
 
 
 def execute(
@@ -13,19 +34,19 @@ def execute(
     root: Path,
     backends: Collection[BowserBackend],
 ) -> None:
-    def _multicall_sync(source: Path, callback: Callable[[], None] | None = None):
-        # nonlocal is not strictly necessary here since we're not
-        # assigning anything to the name, but it helps signal explicitly
-        # that 'backends' is a member of this closure
-        nonlocal backends
+    executor = provide_Executor()
 
-        for backend in backends:
-            backend.sync(source)
+    # adapter from async_multicall to type (Path, () -> None) -> None
+    # functools.partial doesn't seem to work here for two reasons:
+    # 1. the arguments that need partial application are not contiguous. normally you can just use
+    #   keyword arguments for this, but...
+    # 2. all the FileSystemWatcher knows is that `action` is a function of type
+    #   (Path, () -> None) -> None, so it can't use keyword arguments like `callback=...`
+    def _action(source: Path, callback: Callable[[], None]) -> None:
+        nonlocal backends, executor
+        _async_multicall(backends, source, executor, callback)
 
-        if callback is not None:
-            callback()
-
-    watcher = FileSystemWatcher(action=_multicall_sync)
+    watcher = FileSystemWatcher(action=_action)
     watcher.watch(root, polling_interval)
 
 
