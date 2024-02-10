@@ -15,9 +15,5 @@ class BowserConfig(BaseModel):
     """
     polling_interval: int = DEFAULT_POLLING_INTERVAL
     """How often to poll the target file tree in seconds."""
-    strict: bool = True
-    """If ``False``, errors are ignored. Otherwise, they will be raised."""
-    verbose: bool = False
-    """If ``True``, then logging will be set to the most verbose level."""
     backends: list[BowserBackendConfigT]
     """A list of backend configuration objects."""
