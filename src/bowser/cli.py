@@ -28,6 +28,7 @@ def bowser(ctx: click.Context, debug: bool):  # noqa: FBT001
         format="%(asctime)s %(levelname)-8s (%(threadName)s) %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S%z",
     )
+    logging.info("Loading configuration...")
     config = load_app_configuration()
     defaults = {"watch": {"polling_interval": config.polling_interval}}
     ctx.default_map = defaults
@@ -52,7 +53,9 @@ def bowser(ctx: click.Context, debug: bool):  # noqa: FBT001
 def watch(config: BowserConfig, polling_interval: int, root: Path):
     """Start watching a directory."""
     backends = provide_BowserBackend(config)
+    logging.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
     commands.watch(polling_interval=polling_interval, root=root, backends=backends)
+    logging.info("Exiting.")
 
 
 if __name__ == "__main__":
