@@ -20,13 +20,15 @@ def _async_multicall(
     if executor is None:
         executor = provide_Executor()
 
-    futures = [executor.submit(backend.sync, source) for backend in backends]
+    futures = [executor.submit(backend.upload, source) for backend in backends]
     for future in as_completed(futures):
         if (exception := future.exception()) is not None:
             logging.error("Exception in backend sync operation\n%s", exception)
 
     if callback is not None:
         callback()
+
+    logging.debug("Backend operation complete.")
 
 
 def execute(
@@ -42,6 +44,7 @@ def execute(
     #   keyword arguments for this, but...
     # 2. all the FileSystemWatcher knows is that `action` is a function of type
     #   (Path, () -> None) -> None, so it can't use keyword arguments like `callback=...`
+    #   without being fragile.
     def _action(source: Path, callback: Callable[[], None]) -> None:
         nonlocal backends, executor
         _async_multicall(backends, source, executor, callback)
@@ -58,7 +61,7 @@ class FileSystemWatcher:
         self._action: _ActionWithCallback = action
 
     def watch(self, root: Path, polling_interval: int):
-        logging.info("Watching %s for subtrees ready for sync", root)
+        logging.info("Watching %s for subtrees marked ready...", root)
         while True:
             for subtree in filter(lambda node: node.is_dir(), root.iterdir()):
                 complete = subtree / self._complete_sentinel
@@ -67,9 +70,8 @@ class FileSystemWatcher:
                 logging.debug("Checking %s", subtree)
                 ready = subtree / self._ready_sentinel
                 if ready.exists():
-                    logging.info("Found tree ready for sync: %s", subtree)
+                    logging.info("Subtree ready: %s", subtree)
                     self._action(subtree, complete.touch)
-                    logging.info("Sync of %s complete.", subtree)
             stop_sentinel = root / self._complete_sentinel
             if stop_sentinel.exists():
                 logging.info("All operations signaled complete.")

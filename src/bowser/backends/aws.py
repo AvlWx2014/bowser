@@ -15,5 +15,5 @@ class AwsS3Backend(BowserBackend):
     def __str__(self) -> str:
         return self.__class__.__name__
 
-    def sync(self, source: Path) -> None:
+    def upload(self, source: Path) -> None:
         pass
