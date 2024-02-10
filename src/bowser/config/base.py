@@ -1,7 +1,8 @@
-
 from pydantic import BaseModel, ConfigDict
 
 from .backend.type_alias import BowserBackendConfigT
+
+DEFAULT_POLLING_INTERVAL = 1
 
 
 class BowserConfig(BaseModel):
@@ -12,7 +13,7 @@ class BowserConfig(BaseModel):
     generated for the model, allowing it to be used in conjunction with things like
     sets, dicts, and functools.cache.
     """
-    polling_interval: int = 1
+    polling_interval: int = DEFAULT_POLLING_INTERVAL
     """How often to poll the target file tree in seconds."""
     strict: bool = True
     """If ``False``, errors are ignored. Otherwise, they will be raised."""

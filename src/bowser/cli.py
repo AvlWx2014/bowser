@@ -6,7 +6,7 @@ import click
 
 from bowser import commands
 from bowser.backends.di import provide_BowserBackend
-from bowser.config.base import BowserConfig
+from bowser.config.base import DEFAULT_POLLING_INTERVAL, BowserConfig
 from bowser.config.loader import load_app_configuration
 
 pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
@@ -40,7 +40,7 @@ def bowser(ctx: click.Context, debug: bool):  # noqa: FBT001
     "-p",
     "--polling-interval",
     type=int,
-    default=1,
+    default=DEFAULT_POLLING_INTERVAL,
     show_default=True,
     metavar="SECONDS",
     help=(
