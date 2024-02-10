@@ -27,6 +27,8 @@ class Bucket(BaseModel):
 
 
 class AwsBowserBackendConfig(BowserBackendConfig):
+    region: str
+    """AWS Region."""
     access_key_id: SecretStr
     """AWS Access Key ID."""
     secret_access_key: SecretStr
