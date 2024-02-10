@@ -1,6 +1,8 @@
 
 from pydantic import BaseModel, ConfigDict
 
+from .backend.type_alias import BowserBackendConfigT
+
 
 class BowserConfig(BaseModel):
     model_config: ConfigDict = ConfigDict(frozen=True)
@@ -16,3 +18,5 @@ class BowserConfig(BaseModel):
     """If ``False``, errors are ignored. Otherwise, they will be raised."""
     verbose: bool = False
     """If ``True``, then logging will be set to the most verbose level."""
+    backends: list[BowserBackendConfigT]
+    """A list of backend configuration objects."""
