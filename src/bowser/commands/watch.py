@@ -16,7 +16,7 @@ def _async_multicall(
     source: Path,
     executor: Executor | None = None,
     callback: Callable[[], None] | None = None,
-):
+) -> None:
     if executor is None:
         executor = provide_Executor()
 
@@ -60,7 +60,7 @@ class FileSystemWatcher:
         self._complete_sentinel = Path(".bowser.complete")
         self._action: _AsyncAction = action
 
-    def watch(self, root: Path, polling_interval: int):
+    def watch(self, root: Path, polling_interval: int) -> None:
         logging.info("Watching %s for subtrees marked ready...", root)
         while True:
             for subtree in filter(lambda node: node.is_dir(), root.iterdir()):

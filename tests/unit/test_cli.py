@@ -7,19 +7,16 @@ from hamcrest import assert_that, equal_to
 from bowser.cli import bowser
 from bowser.config.loader import load_app_configuration
 
-
 HERE = Path(__file__).parent
 DATA = HERE / "data"
 
 
 def test_cli(tmp_path: Path) -> None:
     configuration = load_app_configuration(check_paths=(DATA,))
-    mock_args = [
-        "watch", "--polling-interval", "2", str(tmp_path)
-    ]
+    mock_args = ["watch", "--polling-interval", "2", str(tmp_path)]
     with (
         patch("bowser.cli.commands.watch") as mock_watch_command,
-        patch("bowser.cli.load_app_configuration") as mock_load_app_configuration
+        patch("bowser.cli.load_app_configuration") as mock_load_app_configuration,
     ):
         mock_load_app_configuration.return_value = configuration
         runner = CliRunner()

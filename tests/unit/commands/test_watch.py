@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from bowser.commands.watch import FileSystemWatcher, execute
 
 
-def test_FileSystemWatcher_watch_ready_tree(tmp_path: Path):
+def test_file_system_watcherwatch_ready_tree(tmp_path: Path):
     # create test tree
     tree = tmp_path / "tree"
     tree.mkdir()
@@ -20,7 +20,7 @@ def test_FileSystemWatcher_watch_ready_tree(tmp_path: Path):
     action.assert_called_once()
 
 
-def test_FileSystemWatcher_watch_no_ready_tree(tmp_path: Path):
+def test_file_system_watcherwatch_no_ready_tree(tmp_path: Path):
     # create test tree
     tree = tmp_path / "tree"
     tree.mkdir()
@@ -34,7 +34,7 @@ def test_FileSystemWatcher_watch_no_ready_tree(tmp_path: Path):
     action.assert_not_called()
 
 
-def test_FileSystemWatcher_watch_completed_tree(tmp_path: Path):
+def test_file_system_watcherwatch_completed_tree(tmp_path: Path):
     # create test tree
     tree = tmp_path / "tree"
     tree.mkdir()
@@ -60,10 +60,6 @@ def test_execute(tmp_path: Path):
     (tmp_path / ".bowser.complete").touch()
 
     mock_backend = MagicMock()
-    execute(
-        polling_interval=1,
-        root=tmp_path,
-        backends=[mock_backend]
-    )
+    execute(polling_interval=1, root=tmp_path, backends=[mock_backend])
 
     mock_backend.upload.assert_called_once()

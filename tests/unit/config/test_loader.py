@@ -18,11 +18,9 @@ def test_load_app_configuration():
                 region="eu-west-1",
                 access_key_id="access key",
                 secret_access_key="secret squirrel stuff",
-                buckets=[
-                    Bucket(name="bucket", key="some/root/key")
-                ]
+                buckets=[Bucket(name="bucket", key="some/root/key")],
             )
-        ]
+        ],
     )
-    actual = load_app_configuration(check_paths=(DATA, ))
+    actual = load_app_configuration(check_paths=(DATA,))
     assert_that(actual, equal_to(expected))

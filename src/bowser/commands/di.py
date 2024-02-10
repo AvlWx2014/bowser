@@ -5,5 +5,6 @@ from functools import cache
 
 @cache
 def provide_Executor() -> Executor:  # noqa: N802
-    workers = max(os.cpu_count() - 1, 1) * 2
+    cpus = os.cpu_count() or 1
+    workers = max(cpus - 1, 1) * 2
     return ThreadPoolExecutor(max_workers=workers)

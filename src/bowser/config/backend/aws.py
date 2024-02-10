@@ -1,19 +1,12 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 from ...extensions import Literally
 from .base import BowserBackendConfig
 
 
-class Bucket(BaseModel):
-    model_config: ConfigDict = ConfigDict(frozen=True)
-    """Note: this is Pydantic magic to configure your models e.g. make them frozen.
-
-    Using ``frozen=True`` as an instance attribute ensures a ``__hash__` method is
-    generated for the model, allowing it to be used in conjunction with things like
-    sets, dicts, and functools.cache.
-    """
+class Bucket(BaseModel, frozen=True):
     name: str
     """The target bucket name."""
     key: str = Field(default="")
@@ -26,7 +19,7 @@ class Bucket(BaseModel):
     """
 
 
-class AwsBowserBackendConfig(BowserBackendConfig):
+class AwsBowserBackendConfig(BowserBackendConfig, frozen=True):
     region: str
     """AWS Region."""
     access_key_id: SecretStr
@@ -35,7 +28,7 @@ class AwsBowserBackendConfig(BowserBackendConfig):
     """AWS Secret Access Key."""
 
 
-class AwsS3BowserBackendConfig(AwsBowserBackendConfig):
+class AwsS3BowserBackendConfig(AwsBowserBackendConfig, frozen=True):
     buckets: list[Bucket]
     """The target buckets to synchronize content to."""
     kind: Literal["AWS-S3"] = Literally("AWS-S3")

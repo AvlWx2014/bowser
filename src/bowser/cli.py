@@ -20,7 +20,7 @@ pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
     help="Enable debug logging. Warning: this may mean a lot of log output.",
 )
 @click.pass_context
-def bowser(ctx: click.Context, debug: bool):  # noqa: FBT001
+def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     """Warehouses your things for you, whether you like it or not."""
     logging.basicConfig(
         stream=sys.stdout,
@@ -50,7 +50,7 @@ def bowser(ctx: click.Context, debug: bool):  # noqa: FBT001
 )
 @click.argument("root", metavar="DIR", type=click.Path(path_type=Path, exists=True))
 @pass_config
-def watch(config: BowserConfig, polling_interval: int, root: Path):
+def watch(config: BowserConfig, polling_interval: int, root: Path) -> None:
     """Start watching a directory."""
     backends = provide_BowserBackend(config)
     logging.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))

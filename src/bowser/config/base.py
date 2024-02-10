@@ -1,18 +1,11 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from .backend.type_alias import BowserBackendConfigT
 
 DEFAULT_POLLING_INTERVAL = 1
 
 
-class BowserConfig(BaseModel):
-    model_config: ConfigDict = ConfigDict(frozen=True)
-    """Note: this is Pydantic magic to configure your models e.g. make them frozen.
-
-    Using ``frozen=True`` as an instance attribute ensures a ``__hash__` method is
-    generated for the model, allowing it to be used in conjunction with things like
-    sets, dicts, and functools.cache.
-    """
+class BowserConfig(BaseModel, frozen=True):
     polling_interval: int = DEFAULT_POLLING_INTERVAL
     """How often to poll the target file tree in seconds."""
     backends: list[BowserBackendConfigT]

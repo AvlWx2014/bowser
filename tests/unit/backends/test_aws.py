@@ -3,7 +3,7 @@ from pathlib import Path
 
 import boto3
 import pytest
-from hamcrest import assert_that, contains_inanyorder, has_item
+from hamcrest import assert_that, has_item
 from moto import mock_aws
 
 from bowser.backends.aws import AwsS3Backend
@@ -75,7 +75,7 @@ def fake_workspace(tmp_path: Path):
     return workspace
 
 
-def test_AwsS3BowserBackend(
+def test_aws_bowser_backend(
     s3_with_buckets,
     fake_s3_client,
     fake_configuration: AwsS3BowserBackendConfig,
@@ -87,7 +87,7 @@ def test_AwsS3BowserBackend(
         expected_keys = {
             # .metadata and .bowser.{ready,complete} files should be skipped
             f"{bucket.key}/workspace/evidence.txt",
-            f"{bucket.key}/workspace/subtree/evidence.json"
+            f"{bucket.key}/workspace/subtree/evidence.json",
         }
         objects = fake_s3_client.list_objects(Bucket=bucket.name)["Contents"]
         for object in objects:
