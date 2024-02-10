@@ -1,0 +1,12 @@
+[bowser]
+polling_interval = 311
+
+[[bowser.backends]]
+kind="AWS-S3"
+region="eu-west-1"
+access_key_id="access key"
+secret_access_key="secret squirrel stuff"
+
+[[bowser.backends.buckets]]
+name = "The Fuck-it Bucket"
+key="some/root/key"
