@@ -2,8 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from bowser.config.backend.base import BowserBackendConfig
-from bowser.extensions import Literally
+from ...extensions import Literally
+from .base import BowserBackendConfig
 
 
 class Bucket(BaseModel):

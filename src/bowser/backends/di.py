@@ -6,9 +6,9 @@ from .aws import AwsS3Backend
 from .base import BowserBackend
 
 
-def provide_BowserBackend(
+def provide_BowserBackend(  # noqa: N802
     config: BowserConfig,
-) -> Collection[BowserBackend]:  # noqa: N802
+) -> Collection[BowserBackend]:
     backends: MutableSequence[BowserBackend] = []
     for backend_config in config.backends:
         match backend_config:
