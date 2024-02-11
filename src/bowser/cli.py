@@ -12,6 +12,9 @@ from bowser.config.loader import load_app_configuration
 pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
 
 
+LOGGER = logging.getLogger("bowser")
+
+
 @click.group
 @click.option(
     "--debug",
@@ -25,10 +28,10 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     logging.basicConfig(
         stream=sys.stdout,
         level=logging.DEBUG if debug else logging.INFO,
-        format="%(asctime)s %(levelname)-8s (%(threadName)s) %(message)s",
+        format="%(asctime)s %(levelname)-8s %(name)s (%(threadName)s) %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S%z",
     )
-    logging.info("Loading configuration...")
+    LOGGER.info("Loading configuration...")
     config = load_app_configuration()
     defaults = {
         "watch": {
@@ -69,11 +72,11 @@ def watch(
 ) -> None:
     """Start watching a directory."""
     with provide_BowserBackends(config, dry_run=dry_run) as backends:
-        logging.debug(
+        LOGGER.debug(
             "Loaded the following backends: %s", ", ".join(map(str, backends))
         )
         commands.watch(polling_interval=polling_interval, root=root, backends=backends)
-        logging.info("Exiting.")
+        LOGGER.info("Exiting.")
 
 
 if __name__ == "__main__":

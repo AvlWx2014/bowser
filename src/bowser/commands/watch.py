@@ -11,6 +11,9 @@ _Callback = Callable[[], None]
 _AsyncAction = Callable[[Path, _Callback], None]
 
 
+LOGGER = logging.getLogger("bowser")
+
+
 def _async_multicall(
     backends: Collection[BowserBackend],
     source: Path,
@@ -23,12 +26,12 @@ def _async_multicall(
     futures = [executor.submit(backend.upload, source) for backend in backends]
     for future in as_completed(futures):
         if (exception := future.exception()) is not None:
-            logging.error("Exception in backend sync operation\n%s", exception)
+            LOGGER.error("Exception in backend sync operation\n%s", exception)
 
     if callback is not None:
         callback()
 
-    logging.debug("Backend operation complete.")
+    LOGGER.debug("Backend operation complete.")
 
 
 def execute(
@@ -61,19 +64,19 @@ class FileSystemWatcher:
         self._action: _AsyncAction = action
 
     def watch(self, root: Path, polling_interval: int) -> None:
-        logging.info("Watching %s for subtrees marked ready...", root)
+        LOGGER.info("Watching %s for subtrees marked ready...", root)
         while True:
             for subtree in filter(lambda node: node.is_dir(), root.iterdir()):
                 complete = subtree / self._complete_sentinel
                 if complete.exists():
                     continue
-                logging.debug("Checking %s", subtree)
+                LOGGER.debug("Checking %s", subtree)
                 ready = subtree / self._ready_sentinel
                 if ready.exists():
-                    logging.info("Subtree ready: %s", subtree)
+                    LOGGER.info("Subtree ready: %s", subtree)
                     self._action(subtree, complete.touch)
             stop_sentinel = root / self._complete_sentinel
             if stop_sentinel.exists():
-                logging.info("All operations signaled complete.")
+                LOGGER.info("All operations signaled complete.")
                 break
             sleep(polling_interval)

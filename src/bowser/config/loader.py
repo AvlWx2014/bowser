@@ -22,6 +22,9 @@ taking precedence over those appearing earlier.
 """
 
 
+LOGGER = logging.getLogger("bowser")
+
+
 def load_app_configuration(
     check_paths: Collection[Path] = _CHECK_PATHS,
 ) -> BowserConfig:
@@ -39,7 +42,8 @@ def load_app_configuration(
             any configuration files found later in ``check_paths`` take precedence over those found
             earlier in ``check_paths``.
     """
-    logging.info("Looking for configuration files %s", ", ".join(map(str, check_paths)))
+    logger = logging.getLogger("bowser")
+    logger.info("Looking for configuration files %s", ", ".join(map(str, check_paths)))
     candidate_files = []
     for path in check_paths:
         if path.name != "bowser.toml":
