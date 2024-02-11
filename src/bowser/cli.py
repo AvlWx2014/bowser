@@ -5,7 +5,7 @@ from pathlib import Path
 import click
 
 from bowser import commands
-from bowser.backends.di import provide_BowserBackend
+from bowser.backends.di import provide_BowserBackends
 from bowser.config.base import DEFAULT_POLLING_INTERVAL, BowserConfig
 from bowser.config.loader import load_app_configuration
 
@@ -30,7 +30,12 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     )
     logging.info("Loading configuration...")
     config = load_app_configuration()
-    defaults = {"watch": {"polling_interval": config.polling_interval}}
+    defaults = {
+        "watch": {
+            "polling_interval": config.polling_interval,
+            "dry_run": config.dry_run,
+        }
+    }
     ctx.default_map = defaults
     ctx.obj = config
 
@@ -48,14 +53,27 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
         "file tree is polled for sentinel files."
     ),
 )
+@click.option(
+    "--dry-run",
+    type=bool,
+    is_flag=True,
+    help=("If present, AWS calls are mocked using moto and no real upload is done."),
+)
 @click.argument("root", metavar="DIR", type=click.Path(path_type=Path, exists=True))
 @pass_config
-def watch(config: BowserConfig, polling_interval: int, root: Path) -> None:
+def watch(
+    config: BowserConfig,
+    polling_interval: int,
+    dry_run: bool,  # noqa: FBT001
+    root: Path,
+) -> None:
     """Start watching a directory."""
-    backends = provide_BowserBackends(config)
-    logging.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
-    commands.watch(polling_interval=polling_interval, root=root, backends=backends)
-    logging.info("Exiting.")
+    with provide_BowserBackends(config, dry_run=dry_run) as backends:
+        logging.debug(
+            "Loaded the following backends: %s", ", ".join(map(str, backends))
+        )
+        commands.watch(polling_interval=polling_interval, root=root, backends=backends)
+        logging.info("Exiting.")
 
 
 if __name__ == "__main__":
