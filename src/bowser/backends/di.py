@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
 
-def provide_BowserBackend(  # noqa: N802
+def provide_BowserBackends(  # noqa: N802
     config: BowserConfig,
 ) -> Collection[BowserBackend]:
     backends: MutableSequence[BowserBackend] = []

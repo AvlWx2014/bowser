@@ -52,7 +52,7 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
 @pass_config
 def watch(config: BowserConfig, polling_interval: int, root: Path) -> None:
     """Start watching a directory."""
-    backends = provide_BowserBackend(config)
+    backends = provide_BowserBackends(config)
     logging.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
     commands.watch(polling_interval=polling_interval, root=root, backends=backends)
     logging.info("Exiting.")
