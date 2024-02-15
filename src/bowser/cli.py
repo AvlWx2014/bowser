@@ -60,7 +60,7 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     "--dry-run",
     type=bool,
     is_flag=True,
-    help=("If present, AWS calls are mocked using moto and no real upload is done."),
+    help="If present, AWS calls are mocked using moto and no real upload is done.",
 )
 @click.argument("root", metavar="DIR", type=click.Path(path_type=Path, exists=True))
 @pass_config
@@ -72,9 +72,7 @@ def watch(
 ) -> None:
     """Start watching a directory."""
     with provide_BowserBackends(config, dry_run=dry_run) as backends:
-        LOGGER.debug(
-            "Loaded the following backends: %s", ", ".join(map(str, backends))
-        )
+        LOGGER.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
         commands.watch(polling_interval=polling_interval, root=root, backends=backends)
         LOGGER.info("Exiting.")
 
