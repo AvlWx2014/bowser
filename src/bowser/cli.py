@@ -8,7 +8,12 @@ import click
 from bowser import commands
 from bowser.backends.di import provide_BowserBackends
 from bowser.commands.di import provide_Executor
-from bowser.commands.watch import CountWatchStrategy, SentinelWatchStrategy, WatchType
+from bowser.commands.watch import (
+    CountWatchStrategy,
+    SentinelWatchStrategy,
+    WatchStrategy,
+    WatchType,
+)
 from bowser.config.base import DEFAULT_POLLING_INTERVAL, BowserConfig
 from bowser.config.loader import load_app_configuration
 
@@ -98,6 +103,7 @@ def watch(
     This is not recursive - only direct child directories are watched.
     """
     executor = provide_Executor()
+    watch_strategy: WatchStrategy
     match strategy:
         case WatchType.SENTINEL:
             sentinel = ".bowser.complete"
@@ -122,7 +128,6 @@ def watch(
         )
         LOGGER.info("Exiting.")
     click.get_current_context().exit()
-
 
 
 def print_help_and_exit() -> Never:

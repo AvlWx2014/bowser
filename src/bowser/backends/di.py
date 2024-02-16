@@ -13,7 +13,8 @@ from .base import BowserBackend
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
-_CLOSE: Literal["close"] = "close"
+_CLOSE_T = Literal["close"]
+_CLOSE: _CLOSE_T = "close"
 
 
 @contextmanager
@@ -21,7 +22,7 @@ def provide_BowserBackends(  # noqa: N802
     config: BowserConfig, dry_run: bool  # noqa: FBT001
 ) -> Iterator[Collection[BowserBackend]]:
     backends: MutableSequence[BowserBackend] = []
-    closeables: MutableSequence[Generator[Any, _CLOSE, None]] = []
+    closeables: MutableSequence[Generator[Any, _CLOSE_T, None]] = []
     for backend_config in config.backends:
         match backend_config:
             case AwsS3BowserBackendConfig():
@@ -41,7 +42,7 @@ def provide_BowserBackends(  # noqa: N802
 
 def provide_S3Client(  # noqa: N802
     config: AwsS3BowserBackendConfig, dry_run: bool  # noqa: FBT001
-) -> Generator["S3Client", _CLOSE, None]:
+) -> Generator["S3Client", _CLOSE_T, None]:
     kwargs = {
         "region_name": config.region,
         "aws_access_key_id": config.access_key_id.get_secret_value(),
@@ -51,9 +52,10 @@ def provide_S3Client(  # noqa: N802
     }
     if dry_run:
         with mock_aws():
-            _ = yield boto3.client("s3", **kwargs)
+            client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
+            _ = yield client
     else:
-        client = boto3.client("s3", **kwargs)
+        client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
         signal = yield client
         if signal == _CLOSE:
             client.close()

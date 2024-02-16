@@ -9,7 +9,7 @@ class WatchStrategy(ABC):
         self._root = watch_root
 
     @abstractmethod
-    def on_next(self, event: Event): ...
+    def on_next(self, event: Event) -> None: ...
 
     @abstractmethod
     def should_stop(self) -> bool: ...
@@ -21,7 +21,7 @@ class SentinelWatchStrategy(WatchStrategy):
         super().__init__(watch_root)
         self._sentinel = sentinel
 
-    def on_next(self, event: Event):
+    def on_next(self, event: Event) -> None:
         pass
 
     def should_stop(self) -> bool:
@@ -34,7 +34,7 @@ class CountWatchStrategy(WatchStrategy):
         self._limit = limit
         self._count = 0
 
-    def on_next(self, event: Event):
+    def on_next(self, event: Event) -> None:
         match event:
             case Event.COMPLETION:
                 if self._count < self._limit:
