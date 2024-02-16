@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, SecretStr
 
 from ...extensions import Literally
 from .base import BowserBackendConfig
@@ -9,7 +9,7 @@ from .base import BowserBackendConfig
 class Bucket(BaseModel, frozen=True):
     name: str
     """The target bucket name."""
-    key: str = Field(default="")
+    key: str = ""
     """The root key content should go under.
 
     If, for example, this is empty then content will be sync'd directly to the top-level
