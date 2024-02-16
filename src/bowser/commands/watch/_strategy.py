@@ -17,7 +17,7 @@ class WatchStrategy(ABC):
 
 class SentinelWatchStrategy(WatchStrategy):
 
-    def __init__(self, watch_root: Path, *, sentinel: str) -> None:
+    def __init__(self, watch_root: Path, *, sentinel: str = ".bowser.complete") -> None:
         super().__init__(watch_root)
         self._sentinel = sentinel
 
