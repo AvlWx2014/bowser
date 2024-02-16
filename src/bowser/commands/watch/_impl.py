@@ -4,8 +4,10 @@ from concurrent.futures import Executor, as_completed
 from pathlib import Path
 from time import sleep
 
-from ..di import provide_Executor
 from ...backends.base import BowserBackend
+from ..di import provide_Executor
+from ._event import Event
+from ._strategy import WatchStrategy
 
 _Callback = Callable[[], None]
 _AsyncAction = Callable[[Path, _Callback], None]
@@ -38,6 +40,7 @@ def execute(
     root: Path,
     polling_interval: int,
     backends: Collection[BowserBackend],
+    strategy: WatchStrategy,
     executor: Executor,
 ) -> None:
     # adapter from async_multicall to type (Path, () -> None) -> None
@@ -51,19 +54,21 @@ def execute(
         nonlocal backends, executor
         _async_multicall(backends, source, executor, callback)
 
-    watcher = FileSystemWatcher(action=_action)
+    watcher = FileSystemWatcher(action=_action, strategy=strategy)
     watcher.watch(root, polling_interval)
 
 
 class FileSystemWatcher:
 
-    def __init__(self, action: _AsyncAction) -> None:
+    def __init__(self, action: _AsyncAction, strategy: WatchStrategy) -> None:
         self._ready_sentinel = Path(".bowser.ready")
         self._complete_sentinel = Path(".bowser.complete")
         self._action: _AsyncAction = action
+        self._strategy: WatchStrategy = strategy
 
     def watch(self, root: Path, polling_interval: int) -> None:
         LOGGER.info("Watching %s for subtrees marked ready...", root)
+        stop = False
         while True:
             for subtree in filter(lambda node: node.is_dir(), root.iterdir()):
                 complete = subtree / self._complete_sentinel
@@ -74,8 +79,11 @@ class FileSystemWatcher:
                 if ready.exists():
                     LOGGER.info("Subtree ready: %s", subtree)
                     self._action(subtree, complete.touch)
-            stop_sentinel = root / self._complete_sentinel
-            if stop_sentinel.exists():
+                    self._strategy.on_next(Event.COMPLETION)
+                if self._strategy.should_stop():
+                    stop = True
+                    break
+            if stop:
                 LOGGER.info("All operations signaled complete.")
                 break
             sleep(polling_interval)
