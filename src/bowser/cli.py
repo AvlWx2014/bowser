@@ -6,6 +6,7 @@ import click
 
 from bowser import commands
 from bowser.backends.di import provide_BowserBackends
+from bowser.commands.di import provide_Executor
 from bowser.config.base import DEFAULT_POLLING_INTERVAL, BowserConfig
 from bowser.config.loader import load_app_configuration
 
@@ -71,9 +72,15 @@ def watch(
     root: Path,
 ) -> None:
     """Start watching a directory."""
+    executor = provide_Executor()
     with provide_BowserBackends(config, dry_run=dry_run) as backends:
         LOGGER.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
-        commands.watch(polling_interval=polling_interval, root=root, backends=backends)
+        commands.watch(
+            root,
+            polling_interval=polling_interval,
+            backends=backends,
+            executor=executor,
+        )
         LOGGER.info("Exiting.")
 
 

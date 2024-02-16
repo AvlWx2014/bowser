@@ -4,8 +4,8 @@ from concurrent.futures import Executor, as_completed
 from pathlib import Path
 from time import sleep
 
-from ..backends.base import BowserBackend
-from .di import provide_Executor
+from ..di import provide_Executor
+from ...backends.base import BowserBackend
 
 _Callback = Callable[[], None]
 _AsyncAction = Callable[[Path, _Callback], None]
@@ -35,12 +35,11 @@ def _async_multicall(
 
 
 def execute(
-    polling_interval: int,
     root: Path,
+    polling_interval: int,
     backends: Collection[BowserBackend],
+    executor: Executor,
 ) -> None:
-    executor = provide_Executor()
-
     # adapter from async_multicall to type (Path, () -> None) -> None
     # functools.partial doesn't seem to work here for two reasons:
     # 1. the arguments that need partial application are not contiguous. normally you can just use
