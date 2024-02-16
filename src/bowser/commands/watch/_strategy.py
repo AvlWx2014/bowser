@@ -14,6 +14,10 @@ class WatchStrategy(ABC):
     @abstractmethod
     def should_stop(self) -> bool: ...
 
+    @property
+    @abstractmethod
+    def reason(self) -> str: ...
+
 
 class SentinelWatchStrategy(WatchStrategy):
 
@@ -26,6 +30,10 @@ class SentinelWatchStrategy(WatchStrategy):
 
     def should_stop(self) -> bool:
         return (self._root / self._sentinel).exists()
+
+    @property
+    def reason(self) -> str:
+        return f"Sentinel file {self._root / self._sentinel} found."
 
 
 class CountWatchStrategy(WatchStrategy):
@@ -47,3 +55,9 @@ class CountWatchStrategy(WatchStrategy):
 
     def should_stop(self) -> bool:
         return self._count == self._limit
+
+    @property
+    def reason(self) -> str:
+        return (
+            f"{self._count} / {self._limit} trees signaled themselves as upload ready."
+        )

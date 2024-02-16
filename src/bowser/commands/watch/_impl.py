@@ -80,9 +80,10 @@ class FileSystemWatcher:
                         self._action(subtree, complete.touch)
                         self._strategy.on_next(Event.COMPLETION)
                 if self._strategy.should_stop():
+                    LOGGER.info("%s", self._strategy.reason)
                     stop = True
                     break
             if stop:
-                LOGGER.info("All operations signaled complete.")
+                LOGGER.info("Stopping...")
                 break
             sleep(polling_interval)
