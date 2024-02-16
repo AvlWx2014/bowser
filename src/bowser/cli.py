@@ -118,7 +118,12 @@ def watch(
                 f"Unknown value: {watch}"
             )
     with provide_BowserBackends(config, dry_run=dry_run) as backends:
-        LOGGER.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
+        dry_run_mode = f"dry_run mode: {'on' if dry_run else 'off'}"
+        LOGGER.info(
+            "Loaded the following backends (%s): %s",
+            dry_run_mode,
+            ", ".join(map(str, backends)),
+        )
         commands.watch(
             root,
             polling_interval=polling_interval,
@@ -126,7 +131,7 @@ def watch(
             strategy=watch_strategy,
             executor=executor,
         )
-        LOGGER.info("Exiting.")
+    LOGGER.info("Exiting.")
     click.get_current_context().exit()
 
 
