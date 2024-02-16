@@ -93,7 +93,10 @@ def watch(
     count: int | None,
     root: Path,
 ) -> None:
-    """Start watching a directory."""
+    """Watch subdirectories of the given directory and upload them once they're ready.
+
+    This is not recursive - only direct child directories are watched.
+    """
     executor = provide_Executor()
     match strategy:
         case WatchType.SENTINEL:
