@@ -1,17 +1,18 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Never
 
 import click
 
 from bowser import commands
 from bowser.backends.di import provide_BowserBackends
 from bowser.commands.di import provide_Executor
+from bowser.commands.watch import CountWatchStrategy, SentinelWatchStrategy, WatchType
 from bowser.config.base import DEFAULT_POLLING_INTERVAL, BowserConfig
 from bowser.config.loader import load_app_configuration
 
 pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
-
 
 LOGGER = logging.getLogger("bowser")
 
@@ -63,25 +64,66 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     is_flag=True,
     help="If present, AWS calls are mocked using moto and no real upload is done.",
 )
+@click.option(
+    "--strategy",
+    metavar="STRATEGY",
+    type=click.Choice(WatchType.values(), case_sensitive=False),
+    default=WatchType.SENTINEL.value,
+    callback=lambda ctx, param, value: WatchType[value.upper()],
+    show_default=True,
+    help="Controls what type of event signals the watch command to stop.",
+)
+@click.option(
+    "-n",
+    "--count",
+    type=int,
+    help=(
+        f"If the '{WatchType.COUNT!s}' watch strategy is chosen, this specifies "
+        "how many completion events to wait for before stopping. "
+        "Must be >= 1."
+    ),
+)
 @click.argument("root", metavar="DIR", type=click.Path(path_type=Path, exists=True))
 @pass_config
 def watch(
     config: BowserConfig,
     polling_interval: int,
     dry_run: bool,  # noqa: FBT001
+    strategy: WatchType,
+    count: int | None,
     root: Path,
 ) -> None:
     """Start watching a directory."""
     executor = provide_Executor()
+    match strategy:
+        case WatchType.SENTINEL:
+            sentinel = ".bowser.complete"
+            watch_strategy = SentinelWatchStrategy(root, sentinel=sentinel)
+        case WatchType.COUNT:
+            if count is None or count <= 0:
+                print_help_and_exit()
+            watch_strategy = CountWatchStrategy(root, limit=count)
+        case _:
+            raise RuntimeError(
+                "Exhaustive match on enum type 'WatchType' failed to match."
+                f"Unknown value: {watch}"
+            )
     with provide_BowserBackends(config, dry_run=dry_run) as backends:
         LOGGER.debug("Loaded the following backends: %s", ", ".join(map(str, backends)))
         commands.watch(
             root,
             polling_interval=polling_interval,
             backends=backends,
+            strategy=watch_strategy,
             executor=executor,
         )
         LOGGER.info("Exiting.")
+
+
+def print_help_and_exit() -> Never:
+    context = click.get_current_context()
+    click.echo(context.get_help())
+    context.exit(1)
 
 
 if __name__ == "__main__":
