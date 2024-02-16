@@ -118,6 +118,8 @@ def watch(
             executor=executor,
         )
         LOGGER.info("Exiting.")
+    click.get_current_context().exit()
+
 
 
 def print_help_and_exit() -> Never:
