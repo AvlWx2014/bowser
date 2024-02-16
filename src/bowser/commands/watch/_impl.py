@@ -72,14 +72,13 @@ class FileSystemWatcher:
         while True:
             for subtree in filter(lambda node: node.is_dir(), root.iterdir()):
                 complete = subtree / self._complete_sentinel
-                if complete.exists():
-                    continue
-                LOGGER.debug("Checking %s", subtree)
-                ready = subtree / self._ready_sentinel
-                if ready.exists():
-                    LOGGER.info("Subtree ready: %s", subtree)
-                    self._action(subtree, complete.touch)
-                    self._strategy.on_next(Event.COMPLETION)
+                if not complete.exists():
+                    LOGGER.debug("Checking %s", subtree)
+                    ready = subtree / self._ready_sentinel
+                    if ready.exists():
+                        LOGGER.info("Subtree ready: %s", subtree)
+                        self._action(subtree, complete.touch)
+                        self._strategy.on_next(Event.COMPLETION)
                 if self._strategy.should_stop():
                     stop = True
                     break
