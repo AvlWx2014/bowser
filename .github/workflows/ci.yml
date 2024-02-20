@@ -1,0 +1,78 @@
+name: CI
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - docs/
+      - "*.md"
+      - Containerfile
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - docs/
+      - "*.md"
+      - Containerfile
+concurrency:
+  group: ${{ github.event.number || github.run_id }}
+  cancel-in-progress: true
+jobs:
+  StaticAnalysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - name: Setup Python (3.11)
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c  # v5.0.0
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Install PDM
+        run: pip install setuptools wheel pdm
+      - name: Cache Venv
+        uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0
+        with:
+          path: .venv
+          key: venv-${{ hashFiles('pdm.lock') }}
+          restore-keys: |
+            venv-
+      - name: Provision Environment
+        run: pdm install -G aws -d
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+      - name: Lint
+        run: pdm lint-check
+      - name: Check Formatting
+        run: pdm check-formatting
+      - name: Type Check
+        run: pdm type-check
+      - name: Security Scan
+        run: pdm security-scan
+  TestSuite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - name: Setup Python (3.11)
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c  # v5.0.0
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Cache Venv
+        id: cache-venv
+        uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0
+        with:
+          path: .venv
+          key: venv-${{ hashFiles('pdm.lock') }}
+          restore-keys: |
+            venv-
+      - name: Install PDM
+        run: pip install setuptools wheel pdm
+      - name: Provision Environment
+        run: pdm install -G aws -d
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+      - name: Unit Tests
+        run: pdm test
+
+
