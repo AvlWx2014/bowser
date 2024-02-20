@@ -18,7 +18,7 @@ def fake_configuration():
     return AwsS3BowserBackendConfig(
         region="us-east-1",
         access_key_id="testing",
-        secret_access_key="testing",
+        secret_access_key="testing",  # nosec B106
         buckets=[Bucket(name="test-bucket", key="i/am/root")],
     )
 
@@ -35,8 +35,8 @@ def fake_aws_credentials(fake_configuration: AwsS3BowserBackendConfig):
     os.environ["AWS_DEFAULT_REGION"] = fake_configuration.region
     # these two aren't used by bowser, but ensure they're mocked out just in case
     # boto would go searching for other credentials in their absence
-    os.environ["AWS_SECURITY_TOKEN"] = "testing"
-    os.environ["AWS_SESSION_TOKEN"] = "testing"
+    os.environ["AWS_SECURITY_TOKEN"] = "testing"  # nosec B105
+    os.environ["AWS_SESSION_TOKEN"] = "testing"  # nosec B105
     yield
     for key in (
         "AWS_ACCESS_KEY_ID",

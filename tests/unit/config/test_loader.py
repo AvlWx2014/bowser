@@ -20,7 +20,7 @@ def test_load_app_configuration():
             AwsS3BowserBackendConfig(
                 region="eu-west-1",
                 access_key_id="access key",
-                secret_access_key="secret squirrel stuff",
+                secret_access_key="secret squirrel stuff",  # nosec B106
                 buckets=[Bucket(name="bucket", key="some/root/key")],
             )
         ],
