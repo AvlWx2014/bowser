@@ -70,6 +70,7 @@ py_version = 311
 
 [tool.bandit]
 exclude_dirs = [".venv", ".*_cache", ".pdm-build", "docs", "htmlcov", ".gitlab"]
+skips = ["B404"]
 
 [tool.mypy]
 python_version = "3.11"
