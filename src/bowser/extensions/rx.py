@@ -24,7 +24,7 @@ class ObservableTransformer(ABC, Generic[_T_out]):
 def observable_background_process(
     command: str, scheduler: SchedulerBase | None = None
 ) -> Observable[bytes]:
-    """Creates a hot Observable of lines from stdout of a background process.
+    """Creates a cold Observable of lines from stdout of a background process.
 
     This function assumes the process is a background or daemon process that is meant to run
     indefinitely.
@@ -39,13 +39,18 @@ def observable_background_process(
     def subscribe(
         observer: ObserverBase[bytes], scheduler_: SchedulerBase
     ) -> DisposableBase:
+        # Prefer schedulers in this order:
+        # 1. the one passed to the observable factory function
+        # 2. the one passed to this subscribe function by the reactivex subscribe internals
+        # 3. a scheduler representing the current thread of execution
+        # In practice (2) never seems to be fulfilled, even when a call to
+        # `reactivex.operators.subscribe_on` is present in the chain, which is curious since this
+        # is exactly where I'd expect to see a call to `subscribe_on` manifest.
         _scheduler = scheduler or scheduler_ or CurrentThreadScheduler.singleton()
-        LOGGER.debug("Scheduler in use: %s", _scheduler)
         disposed = False
 
         def dispose() -> None:
             nonlocal disposed
-            LOGGER.debug("Disposing Observable process stream.")
             disposed = True
 
         def action(_: SchedulerBase, __: Any | None) -> None:
@@ -55,6 +60,7 @@ def observable_background_process(
                 shell=False,
                 stdout=subprocess.PIPE,
             )
+            LOGGER.debug("Starting Observable flow from process %d", proc.pid)
             try:
                 while not disposed:
                     # readline blocks until there is output on stdout
@@ -65,7 +71,10 @@ def observable_background_process(
             except Exception as e:
                 observer.on_error(e)
             finally:
-                LOGGER.debug("Disposing underlying process %d", proc.pid)
+                LOGGER.debug(
+                    "Terminal event on Observable. Killing underlying process %d",
+                    proc.pid,
+                )
                 proc.kill()
 
         disposable = Disposable(dispose)

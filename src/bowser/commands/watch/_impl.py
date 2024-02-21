@@ -30,6 +30,7 @@ def execute(
                 return
 
             if value.subject == ".bowser.ready":
+                LOGGER.debug("Sentinel file found in %s", value.watch)
                 for backend in backends:
                     try:
                         backend.upload(value.watch)
@@ -45,25 +46,25 @@ def execute(
             self.dispose()
 
         def dispose(self) -> None:
+            LOGGER.debug("Signaling completion from Observer.")
             with completed:
                 completed.notify()
 
     cpus = os.cpu_count() or 1
     workers = max(cpus, 1)
     scheduler = ThreadPoolScheduler(max_workers=workers)
+    # Subscribe to the source Observable. The upstream source Observable waits for
+    # subscription before events start flowing. Upstream work will happen on a dedicated thread
+    # scheduled by the scheduler passed to the Observable factory function below.
     (
         # wrap the source Observable in our watch strategy transformer
-        transform(
-            # run the source observable work on the EventLoopScheduler
-            observable_inotifywait(root, scheduler=EventLoopScheduler())
-        )
+        transform(observable_inotifywait(root, scheduler=EventLoopScheduler()))
         .pipe(
             # run the observer actions on the ThreadPoolScheduler
             ops.observe_on(scheduler),
         )
         .subscribe(AnonymousObserver())
     )
-    # wait on the main thread until the Observer has been notified of
-    # the upstream completion event (i.e. that on_completed has been called)
+    # wait on the main thread until the Observer has been disposed of
     with completed:
         completed.wait()
