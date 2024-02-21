@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, SecretStr
 
-from ...extensions import Literally
+from ...extensions.pydantic import Literally
 from .base import BowserBackendConfig
 
 
