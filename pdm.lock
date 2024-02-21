@@ -5,7 +5,7 @@
 groups = ["default", "dev", "test", "aws"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:5cb34f3b7d5f3a28028036f54b2aaf9d2f5d8e4ba279786a9741990cffe3b634"
+content_hash = "sha256:2235065fd3b1f1b9a5526aec9d149104bfa7c146c225184e6a0465f859041044"
 
 [[package]]
 name = "annotated-types"
@@ -904,6 +904,20 @@ files = [
     {file = "PyYAML-6.0.1-cp312-cp312-win32.whl", hash = "sha256:d483d2cdf104e7c9fa60c544d92981f12ad66a457afae824d146093b8c294c54"},
     {file = "PyYAML-6.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:0d3304d8c0adc42be59c5f8a4d9e3d7379e6955ad754aa9d6ab7a398b59dd1df"},
     {file = "PyYAML-6.0.1.tar.gz", hash = "sha256:bfdf460b1736c775f2ba9f6a92bca30bc2095067b8a9d77876d1fad6cc3b4a43"},
+]
+
+[[package]]
+name = "reactivex"
+version = "4.0.4"
+requires_python = ">=3.7,<4.0"
+summary = "ReactiveX (Rx) for Python"
+groups = ["default"]
+dependencies = [
+    "typing-extensions<5.0.0,>=4.1.1",
+]
+files = [
+    {file = "reactivex-4.0.4-py3-none-any.whl", hash = "sha256:0004796c420bd9e68aad8e65627d85a8e13f293de76656165dffbcb3a0e3fb6a"},
+    {file = "reactivex-4.0.4.tar.gz", hash = "sha256:e912e6591022ab9176df8348a653fe8c8fa7a301f26f9931c9d8c78a650e04e8"},
 ]
 
 [[package]]
