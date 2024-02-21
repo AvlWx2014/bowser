@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
 
+LOGGER = logging.getLogger("bowser")
+
+
 AWS_TAG_MAXIMUM = 10
 
 
@@ -57,7 +60,7 @@ class AwsS3Backend(BowserBackend):
                 # lstrip to remove any unwanted leading "/" e.g. if `bucket.key` is empty
                 key = f"{bucket.key}/{relative_path!s}".lstrip("/")
                 tags = _convert_metadata_to_s3_object_tags(meta)
-                logging.info("Uploading %s to %s/%s", path, bucket.name, key)
+                LOGGER.info("Uploading %s to %s/%s", path, bucket.name, key)
                 self._client.put_object(
                     Body=str(path),
                     Bucket=bucket.name,
@@ -65,7 +68,7 @@ class AwsS3Backend(BowserBackend):
                     Tagging=tags,
                     ChecksumAlgorithm="SHA256",
                 )
-                logging.info("Done.")
+                LOGGER.info("Done.")
 
 
 def _convert_metadata_to_s3_object_tags(

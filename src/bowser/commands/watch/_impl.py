@@ -26,21 +26,20 @@ def execute(
 
         def on_next(self, value: InotifyEventData) -> None:
             nonlocal backends
-            LOGGER.info("AnonymousObserver received event %s", value)
             if InotifyEvent.CREATE not in value.events:
-                LOGGER.debug("AnonymousObserver ignoring event.")
                 return
 
             if value.subject == ".bowser.ready":
                 for backend in backends:
-                    LOGGER.info("Uploading with backend %s...", backend)
                     backend.upload(value.watch)
 
         def on_error(self, error: Exception) -> None:
             LOGGER.error("Unhandled exception", exc_info=error)
+            # TODO: an unhandled exception should cause the upstream to dispose, which
+            #  should in turn call this dispose method and exit
+            #  might have to call dispose explicitly here?
 
         def on_completed(self) -> None:
-            LOGGER.info("AnonymousObserver::on_completed")
             self.dispose()
 
         def dispose(self) -> None:
