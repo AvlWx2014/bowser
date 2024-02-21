@@ -37,12 +37,10 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
         format="%(asctime)s %(levelname)-8s %(name)s (%(threadName)s) %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S%z",
     )
-    # logging.getLogger("botocore").setLevel(logging.CRITICAL)
     LOGGER.info("Loading configuration...")
     config = load_app_configuration()
     defaults = {
         "watch": {
-            "polling_interval": config.polling_interval,
             "dry_run": config.dry_run,
         }
     }
