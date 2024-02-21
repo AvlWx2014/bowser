@@ -1,4 +1,5 @@
 import logging
+from abc import ABC
 from pathlib import Path
 
 import reactivex.operators as ops
@@ -11,7 +12,7 @@ from ...inotify import InotifyEvent, InotifyEventData
 LOGGER = logging.getLogger("bowser")
 
 
-class WatchStrategy(ObservableTransformer[InotifyEventData]):
+class WatchStrategy(ObservableTransformer[InotifyEventData], ABC):
     pass
 
 
@@ -49,6 +50,7 @@ class SentinelWatchStrategy(WatchStrategy):
             observer: ObserverBase[InotifyEventData],
             scheduler: SchedulerBase | None = None,
         ) -> DisposableBase:
+
             def on_next(value: InotifyEventData) -> None:
                 observer.on_next(value)
                 if (

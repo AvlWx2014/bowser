@@ -50,8 +50,9 @@ def observable_background_process(
 
         def action(_: SchedulerBase, __: Any | None) -> None:
             nonlocal disposed
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # nosec B603
                 shlex.split(command),
+                shell=False,
                 stdout=subprocess.PIPE,
             )
             try:
