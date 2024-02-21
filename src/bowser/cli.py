@@ -83,9 +83,9 @@ def watch(
     count: int | None,
     root: Path,
 ) -> None:
-    """Watch subdirectories of the given directory and upload them once they're ready.
+    """Watch DIR (recursively) and upload trees marked as ready.
 
-    This is not recursive - only direct child directories are watched.
+    Use the sentinel file .bowser.ready to mark a tree as ready for upload.
     """
     watch_strategy: WatchStrategy
     match strategy:

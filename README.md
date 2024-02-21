@@ -17,7 +17,7 @@ Options:
   --help   Show this message and exit.
 
 Commands:
-  watch  Watch subdirectories of the given directory and upload them once...
+  watch  Watch DIR (recursively) and upload trees marked as ready.
 ```
 
 #### bowser watch
@@ -25,23 +25,19 @@ Commands:
 ```text
 Usage: bowser watch [OPTIONS] DIR
 
-  Watch subdirectories of the given directory and upload them once they're
-  ready.
+  Watch DIR (recursively) and upload trees marked as ready.
 
-  This is not recursive - only direct child directories are watched.
+  Use the sentinel file .bowser.ready to mark a tree as ready for upload.
 
 Options:
-  -p, --polling-interval SECONDS  The interval, in seconds, at which the
-                                  provided file tree is polled for sentinel
-                                  files.  [default: 1]
-  --dry-run                       If present, AWS calls are mocked using moto
-                                  and no real upload is done.
-  --strategy STRATEGY             Controls what type of event signals the
-                                  watch command to stop.  [default: sentinel]
-  -n, --count INTEGER             If the 'count' watch strategy is chosen,
-                                  this specifies how many completion events to
-                                  wait for before stopping. Must be >= 1.
-  --help                          Show this message and exit.
+  --dry-run            If present, AWS calls are mocked using moto and no real
+                       upload is done.
+  --strategy STRATEGY  Controls what type of event signals the watch command
+                       to stop.  [default: sentinel]
+  -n, --count INTEGER  If the 'count' watch strategy is chosen, this specifies
+                       how many completion events to wait for before stopping.
+                       Must be >= 1.
+  --help               Show this message and exit.
 ```
 
 ## Configuration
@@ -62,7 +58,6 @@ Here is an example configuration file:
 
 ```toml
 [bowser]
-polling_interval = 3
 dry_run = true
 
 [[bowser.backends]]
@@ -82,7 +77,6 @@ precedence as command line flags:
 | Configuration Field | Corresponding Command-line Option | Subcommand Scope |
 |---------------------|-----------------------------------|------------------|
 | `dry_run`           | `--dry-run`                       | `watch`          |
-| `polling_interval`  | `-p/--polling-interval`           | `watch`          |
 
 ## Watch Strategy
 
@@ -90,8 +84,7 @@ Bowser supports multiple watch strategies for the `watch` subcommand.
 
 ### The "Sentinel" Watch Strategy (default)
 
-Stop once a sentinel file called `.bowser.complete` appears in the watch directory passed as an
-argument to the `watch` subcommand.
+Stop once a sentinel file called `.bowser.complete` appears in the watch directory.
 
 This is the default watch strategy. If you would like to enable it explicitly, use `--strategy
 sentinel` like:
@@ -216,4 +209,7 @@ provides `key = "some/root/key` then the resulting key for `test2/subtree/conten
 * The AWS S3 backend skips any files with the suffix `.metadata`. It is assumed that `.metadata`
   files are JSON-encoded files with a flat structure of `key: value` pairs of strings. These are
   then translated in to object tags in S3 and as such are subject to the same limitations.
+* The system call `inotify` is leveraged for watching the tree rooted at `DIR` through 
+  `inotifywait`, which is part of the package `inotify-tools`. `inotifywait` is run using the 
+  options `-rmq` i.e. `--recursive`, `--monitor`, and `--quiet` respectively.
 
