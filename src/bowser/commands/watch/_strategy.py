@@ -16,6 +16,8 @@ class WatchStrategy(ObservableTransformer[InotifyEventData]):
 
 
 class CountWatchStrategy(WatchStrategy):
+    """Let the first ``n`` CREATE .bowser.ready events pass through before completing."""
+
     def __init__(self, n: int) -> None:
         self._n = n
 
@@ -34,6 +36,8 @@ class CountWatchStrategy(WatchStrategy):
 
 
 class SentinelWatchStrategy(WatchStrategy):
+    """Let events pass through, completing once a CREATE event for ``sentinel`` is encountered."""
+
     def __init__(self, watch_root: Path, *, sentinel: str = ".bowser.complete") -> None:
         self._watch_root = watch_root
         self._sentinel = sentinel
