@@ -1,5 +1,4 @@
 [bowser]
-polling_interval = 3
 dry_run = true
 
 [[bowser.backends]]

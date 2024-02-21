@@ -13,7 +13,7 @@ from bowser.commands.watch import (
     WatchStrategy,
     WatchType,
 )
-from bowser.config.base import DEFAULT_POLLING_INTERVAL, BowserConfig
+from bowser.config.base import BowserConfig
 from bowser.config.loader import load_app_configuration
 
 pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
@@ -52,18 +52,6 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
 
 @bowser.command
 @click.option(
-    "-p",
-    "--polling-interval",
-    type=int,
-    default=DEFAULT_POLLING_INTERVAL,
-    show_default=True,
-    metavar="SECONDS",
-    help=(
-        "The interval, in seconds, at which the provided "
-        "file tree is polled for sentinel files."
-    ),
-)
-@click.option(
     "--dry-run",
     type=bool,
     is_flag=True,
@@ -92,7 +80,6 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
 @pass_config
 def watch(
     config: BowserConfig,
-    polling_interval: int,
     dry_run: bool,  # noqa: FBT001
     strategy: WatchType,
     count: int | None,

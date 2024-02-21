@@ -6,8 +6,6 @@ DEFAULT_POLLING_INTERVAL = 1
 
 
 class BowserConfig(BaseModel, frozen=True):
-    polling_interval: int = DEFAULT_POLLING_INTERVAL
-    """How often to poll the target file tree in seconds."""
     dry_run: bool = False
     """Perform a dry run of any work.
 
