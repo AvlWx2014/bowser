@@ -5,9 +5,8 @@ from typing import Never
 
 import click
 
-from bowser import commands
+import bowser.commands as commands
 from bowser.backends.di import provide_BowserBackends
-from bowser.commands.di import provide_Executor
 from bowser.commands.watch import (
     CountWatchStrategy,
     SentinelWatchStrategy,
@@ -38,6 +37,7 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
         format="%(asctime)s %(levelname)-8s %(name)s (%(threadName)s) %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S%z",
     )
+    # logging.getLogger("botocore").setLevel(logging.CRITICAL)
     LOGGER.info("Loading configuration...")
     config = load_app_configuration()
     defaults = {
@@ -102,21 +102,16 @@ def watch(
 
     This is not recursive - only direct child directories are watched.
     """
-    executor = provide_Executor()
     watch_strategy: WatchStrategy
     match strategy:
         case WatchType.SENTINEL:
             sentinel = ".bowser.complete"
             watch_strategy = SentinelWatchStrategy(root, sentinel=sentinel)
         case WatchType.COUNT:
-            if count is None or count <= 0:
-                print_help_and_exit()
-            watch_strategy = CountWatchStrategy(root, limit=count)
+            watch_strategy = CountWatchStrategy(n=count)
         case _:
-            raise RuntimeError(
-                "Exhaustive match on enum type 'WatchType' failed to match."
-                f"Unknown value: {watch}"
-            )
+            raise RuntimeError()
+
     with provide_BowserBackends(config, dry_run=dry_run) as backends:
         dry_run_mode = f"dry_run mode: {'on' if dry_run else 'off'}"
         LOGGER.info(
@@ -126,11 +121,10 @@ def watch(
         )
         commands.watch(
             root,
-            polling_interval=polling_interval,
             backends=backends,
-            strategy=watch_strategy,
-            executor=executor,
+            transform=watch_strategy,
         )
+
     LOGGER.info("Exiting.")
     click.get_current_context().exit()
 
