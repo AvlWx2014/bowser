@@ -31,13 +31,15 @@ def execute(
 
             if value.subject == ".bowser.ready":
                 for backend in backends:
-                    backend.upload(value.watch)
+                    try:
+                        backend.upload(value.watch)
+                    except Exception:
+                        LOGGER.exception("Unhandled exception in backend upload.")
+                        LOGGER.info("Observer will continue processing events...")
 
         def on_error(self, error: Exception) -> None:
-            LOGGER.error("Unhandled exception", exc_info=error)
-            # TODO: an unhandled exception should cause the upstream to dispose, which
-            #  should in turn call this dispose method and exit
-            #  might have to call dispose explicitly here?
+            LOGGER.error("Unhandled exception in upstream Observable.", exc_info=error)
+            self.dispose()
 
         def on_completed(self) -> None:
             self.dispose()

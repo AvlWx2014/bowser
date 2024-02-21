@@ -61,12 +61,12 @@ def observable_background_process(
                     line = proc.stdout.readline().strip()
                     if line:
                         observer.on_next(line)
+                observer.on_completed()
             except Exception as e:
                 observer.on_error(e)
             finally:
                 LOGGER.debug("Disposing underlying process %d", proc.pid)
                 proc.kill()
-                observer.on_completed()
 
         disposable = Disposable(dispose)
         return CompositeDisposable(_scheduler.schedule(action), disposable)
