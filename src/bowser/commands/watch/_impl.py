@@ -1,89 +1,68 @@
 import logging
-from collections.abc import Callable, Collection
-from concurrent.futures import Executor, as_completed
+import os
+from collections.abc import Collection
 from pathlib import Path
-from time import sleep
+from threading import Condition
+
+from reactivex import operators as ops
+from reactivex.abc import DisposableBase, ObserverBase
+from reactivex.scheduler import EventLoopScheduler, ThreadPoolScheduler
 
 from ...backends.base import BowserBackend
-from ..di import provide_Executor
-from ._event import Event
+from ...inotify import InotifyEvent, InotifyEventData, observable_inotifywait
 from ._strategy import WatchStrategy
-
-_Callback = Callable[[], None]
-_AsyncAction = Callable[[Path, _Callback], None]
-
 
 LOGGER = logging.getLogger("bowser")
 
 
-def _async_multicall(
-    backends: Collection[BowserBackend],
-    source: Path,
-    executor: Executor | None = None,
-    callback: Callable[[], None] | None = None,
-) -> None:
-    if executor is None:
-        executor = provide_Executor()
-
-    futures = [executor.submit(backend.upload, source) for backend in backends]
-    for future in as_completed(futures):
-        if (exception := future.exception()) is not None:
-            LOGGER.error("Exception in backend sync operation\n%s", exception)
-
-    if callback is not None:
-        callback()
-
-    LOGGER.debug("Backend operation complete.")
-
-
 def execute(
     root: Path,
-    polling_interval: int,
     backends: Collection[BowserBackend],
-    strategy: WatchStrategy,
-    executor: Executor,
-) -> None:
-    # adapter from async_multicall to type (Path, () -> None) -> None
-    # functools.partial doesn't seem to work here for two reasons:
-    # 1. the arguments that need partial application are not contiguous. normally you can just use
-    #   keyword arguments for this, but...
-    # 2. all the FileSystemWatcher knows is that `action` is a function of type
-    #   (Path, () -> None) -> None, so it can't use keyword arguments like `callback=...`
-    #   without being fragile.
-    def _action(source: Path, callback: Callable[[], None]) -> None:
-        nonlocal backends, executor
-        _async_multicall(backends, source, executor, callback)
+    transform: WatchStrategy,
+):
+    completed = Condition()
 
-    watcher = FileSystemWatcher(action=_action, strategy=strategy)
-    watcher.watch(root, polling_interval)
+    class AnonymousObserver(ObserverBase[InotifyEventData], DisposableBase):
 
+        def on_next(self, value: InotifyEventData) -> None:
+            nonlocal backends
+            LOGGER.info("AnonymousObserver received event %s", value)
+            if InotifyEvent.CREATE not in value.events:
+                LOGGER.debug("AnonymousObserver ignoring event.")
+                return
 
-class FileSystemWatcher:
+            if value.subject == ".bowser.ready":
+                for backend in backends:
+                    LOGGER.info("Uploading with backend %s...", backend)
+                    backend.upload(value.watch)
 
-    def __init__(self, action: _AsyncAction, strategy: WatchStrategy) -> None:
-        self._ready_sentinel = Path(".bowser.ready")
-        self._complete_sentinel = Path(".bowser.complete")
-        self._action: _AsyncAction = action
-        self._strategy: WatchStrategy = strategy
+        def on_error(self, error: Exception) -> None:
+            LOGGER.error("Unhandled exception", exc_info=error)
 
-    def watch(self, root: Path, polling_interval: int) -> None:
-        LOGGER.info("Watching %s for subtrees marked ready...", root)
-        stop = False
-        while True:
-            for subtree in filter(lambda node: node.is_dir(), root.iterdir()):
-                complete = subtree / self._complete_sentinel
-                if not complete.exists():
-                    LOGGER.debug("Checking %s", subtree)
-                    ready = subtree / self._ready_sentinel
-                    if ready.exists():
-                        LOGGER.info("Subtree ready: %s", subtree)
-                        self._action(subtree, complete.touch)
-                        self._strategy.on_next(Event.COMPLETION)
-                if self._strategy.should_stop():
-                    LOGGER.info("%s", self._strategy.reason)
-                    stop = True
-                    break
-            if stop:
-                LOGGER.info("Stopping...")
-                break
-            sleep(polling_interval)
+        def on_completed(self) -> None:
+            LOGGER.info("AnonymousObserver::on_completed")
+            self.dispose()
+
+        def dispose(self) -> None:
+            with completed:
+                completed.notify()
+
+    cpus = os.cpu_count() or 1
+    workers = max(cpus, 1)
+    scheduler = ThreadPoolScheduler(max_workers=workers)
+    (
+        # wrap the source Observable in our watch strategy transformer
+        transform(
+            # run the source observable work on the EventLoopScheduler
+            observable_inotifywait(root, scheduler=EventLoopScheduler())
+        )
+        .pipe(
+            # run the observer actions on the ThreadPoolScheduler
+            ops.observe_on(scheduler),
+        )
+        .subscribe(AnonymousObserver())
+    )
+    # wait on the main thread until the Observer has been notified of
+    # the upstream completion event (i.e. that on_completed has been called)
+    with completed:
+        completed.wait()
