@@ -1,7 +1,8 @@
 import logging
 import shlex
 import subprocess
-from typing import Any
+from abc import ABC, abstractmethod
+from typing import Any, Generic, TypeVar
 
 from reactivex import Observable
 from reactivex.abc import DisposableBase, ObserverBase, SchedulerBase
@@ -9,6 +10,15 @@ from reactivex.disposable import CompositeDisposable, Disposable
 from reactivex.scheduler import CurrentThreadScheduler
 
 LOGGER = logging.getLogger("bowser")
+
+
+_T_out = TypeVar("_T_out", covariant=True)
+
+
+class ObservableTransformer(ABC, Generic[_T_out]):
+    @abstractmethod
+    def __call__(self, upstream: Observable[_T_out]) -> Observable[_T_out]:
+        raise NotImplementedError()
 
 
 def observable_background_process(
