@@ -27,6 +27,7 @@ def observable_inotifywait(
     """
     watch_dir_string = shlex.quote(str(watch))
     command = f"inotifywait -rmq {watch_dir_string}"
-    return observable_background_process(command, scheduler).pipe(
-        ops.map(lambda line: output_to_event_data(line.decode("utf-8"))),
+    upstream: Observable[bytes] = observable_background_process(command, scheduler)
+    return upstream.pipe(
+        ops.map(lambda line: output_to_event_data(line.decode("utf-8"))),  # type: ignore[attr-defined]
     )
