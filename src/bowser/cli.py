@@ -1,7 +1,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Never, cast
+from typing import cast
 
 import click
 
@@ -48,6 +48,14 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     ctx.obj = config
 
 
+def _validate_count(_: click.Context, __: str, value: int | None) -> int | None:
+    if value is None:
+        return value
+    if value < 1:
+        raise click.BadParameter("count must be >= 1")
+    return value
+
+
 @bowser.command
 @click.option(
     "--dry-run",
@@ -68,6 +76,7 @@ def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     "-n",
     "--count",
     type=int,
+    callback=_validate_count,
     help=(
         f"If the '{WatchType.COUNT!s}' watch strategy is chosen, this specifies "
         "how many completion events to wait for before stopping. "
@@ -114,12 +123,6 @@ def watch(
 
     LOGGER.info("Exiting.")
     click.get_current_context().exit()
-
-
-def print_help_and_exit() -> Never:
-    context = click.get_current_context()
-    click.echo(context.get_help())
-    context.exit(1)
 
 
 if __name__ == "__main__":
