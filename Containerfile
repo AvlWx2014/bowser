@@ -4,7 +4,9 @@ USER root
 # Install PDM
 ENV DNF_OPTS="--setopt=install_weak_deps=False --setopt=tsflags=nodocs"
 RUN dnf update -y && \
-    dnf install -y ${DNF_OPTS} python3-pip \
+    dnf install -y ${DNF_OPTS} \
+                python3-pip \
+                inotify-tools \
  && dnf clean all -y
 # Install PDM in the system environment so the provided virtual environment can be
 # re-used later without clashing with PDM and its dependencies
