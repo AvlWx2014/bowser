@@ -1,7 +1,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Never
+from typing import Never, cast
 
 import click
 
@@ -93,7 +93,9 @@ def watch(
             sentinel = ".bowser.complete"
             watch_strategy = SentinelWatchStrategy(root, sentinel=sentinel)
         case WatchType.COUNT:
-            watch_strategy = CountWatchStrategy(n=count)
+            # cast OK: if the code gets here it means that the -n/--count flag was
+            # provided and successfully coerced to an int (and as such is not None)
+            watch_strategy = CountWatchStrategy(n=cast(int, count))
         case _:
             raise RuntimeError()
 

@@ -19,7 +19,7 @@ def execute(
     root: Path,
     backends: Collection[BowserBackend],
     transform: WatchStrategy,
-):
+) -> None:
     completed = Condition()
 
     class AnonymousObserver(ObserverBase[InotifyEventData], DisposableBase):

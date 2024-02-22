@@ -2,7 +2,7 @@ import logging
 import shlex
 import subprocess
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, BinaryIO, Generic, TypeVar, cast
 
 from reactivex import Observable
 from reactivex.abc import DisposableBase, ObserverBase, SchedulerBase
@@ -37,7 +37,7 @@ def observable_background_process(
     """
 
     def subscribe(
-        observer: ObserverBase[bytes], scheduler_: SchedulerBase
+        observer: ObserverBase[bytes], scheduler_: SchedulerBase | None
     ) -> DisposableBase:
         # Prefer schedulers in this order:
         # 1. the one passed to the observable factory function
@@ -60,11 +60,12 @@ def observable_background_process(
                 shell=False,
                 stdout=subprocess.PIPE,
             )
+            stdout = cast(BinaryIO, proc.stdout)
             LOGGER.debug("Starting Observable flow from process %d", proc.pid)
             try:
                 while not disposed:
                     # readline blocks until there is output on stdout
-                    line = proc.stdout.readline().strip()
+                    line = stdout.readline().strip()
                     if line:
                         observer.on_next(line)
                 observer.on_completed()

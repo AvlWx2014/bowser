@@ -15,4 +15,4 @@ def output_to_event_data(line: str) -> InotifyEventData:
     kwargs = {"watch": Path(watch), "events": events}
     if rest:
         kwargs["subject"] = rest[0]
-    return InotifyEventData(**kwargs)
+    return InotifyEventData(**kwargs)  # type: ignore[arg-type]
