@@ -63,15 +63,22 @@ def s3_with_buckets(fake_s3_client, fake_configuration: AwsS3BowserBackendConfig
 @pytest.fixture
 def fake_workspace(tmp_path: Path):
     workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    (workspace / "subtree").mkdir()
-    for file in (
-        Path("evidence.txt"),
-        Path("subtree/evidence.json"),
-        Path("subtree/evidence.metadata"),
-        Path(".bowser.ready"),
+    workspace.mkdir(parents=True)
+    common_root = workspace / Path("common/ancestors")
+    common_root.mkdir(parents=True)
+    for subpath in (
+        Path("app1/content.txt"),
+        Path("app1/.bowser.ready"),
+        Path("app2/subtree/content.json"),
+        Path("app2/subtree/content.metadata"),
+        Path("app2/subtree/content.txt"),
+        Path("app2/.bowser.ready"),
+        Path("app3/report.yml"),
+        Path("app3/.bowser.ready"),
     ):
-        workspace.joinpath(file).touch()
+        application_file = common_root / subpath
+        application_file.parent.mkdir(parents=True, exist_ok=True)
+        application_file.touch()
     return workspace
 
 
@@ -81,15 +88,21 @@ def test_aws_bowser_backend(
     fake_configuration: AwsS3BowserBackendConfig,
     fake_workspace: Path,
 ):
-    backend = AwsS3Backend(config=fake_configuration, client=fake_s3_client)
-    backend.upload(fake_workspace)
+    backend = AwsS3Backend(
+        watch_root=fake_workspace, config=fake_configuration, client=fake_s3_client
+    )
+    for application_tree in ("app1", "app2", "app3"):
+        source = fake_workspace / "common/ancestors" / application_tree
+        backend.upload(source)
     for bucket in fake_configuration.buckets:
         expected_keys = {
             # .metadata and .bowser.{ready,complete} files should be skipped
-            f"{bucket.key}/workspace/evidence.txt",
-            f"{bucket.key}/workspace/subtree/evidence.json",
+            f"{bucket.key}/common/ancestors/app1/content.txt".lstrip("/"),
+            f"{bucket.key}/common/ancestors/app2/subtree/content.json".lstrip("/"),
+            f"{bucket.key}/common/ancestors/app2/subtree/content.txt".lstrip("/"),
+            f"{bucket.key}/common/ancestors/app3/report.yml".lstrip("/"),
         }
         objects = fake_s3_client.list_objects(Bucket=bucket.name)["Contents"]
-        for object in objects:
-            key = object["Key"]
+        for obj in objects:
+            key = obj["Key"]
             assert_that(expected_keys, has_item(key))
