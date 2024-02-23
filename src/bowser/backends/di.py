@@ -1,5 +1,6 @@
 from collections.abc import Collection, Generator, Iterator, MutableSequence
 from contextlib import contextmanager, suppress
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import boto3
@@ -19,7 +20,7 @@ _CLOSE: _CLOSE_T = "close"
 
 @contextmanager
 def provide_BowserBackends(  # noqa: N802
-    config: BowserConfig, dry_run: bool  # noqa: FBT001
+    watch_root: Path, config: BowserConfig, dry_run: bool  # noqa: FBT001
 ) -> Iterator[Collection[BowserBackend]]:
     backends: MutableSequence[BowserBackend] = []
     closeables: MutableSequence[Generator[Any, _CLOSE_T, None]] = []
@@ -27,7 +28,13 @@ def provide_BowserBackends(  # noqa: N802
         match backend_config:
             case AwsS3BowserBackendConfig():
                 provider = provide_S3Client(backend_config, dry_run)
-                backends.append(AwsS3Backend(backend_config, client=next(provider)))
+                backends.append(
+                    AwsS3Backend(
+                        watch_root=watch_root,
+                        config=backend_config,
+                        client=next(provider),
+                    )
+                )
                 closeables.append(provider)
             case _:
                 raise RuntimeError(
