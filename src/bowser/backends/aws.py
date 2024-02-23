@@ -26,7 +26,10 @@ class _FileMetadataPair(NamedTuple):
 
 class AwsS3Backend(BowserBackend):
 
-    def __init__(self, config: AwsS3BowserBackendConfig, client: "S3Client"):
+    def __init__(
+        self, watch_root: Path, config: AwsS3BowserBackendConfig, client: "S3Client"
+    ):
+        super().__init__(watch_root)
         self._config = config
         self._client = client
 
@@ -56,7 +59,7 @@ class AwsS3Backend(BowserBackend):
 
         for bucket in self._config.buckets:
             for path, meta in for_upload:
-                relative_path = path.relative_to(source.parent)
+                relative_path = path.relative_to(self.watch_root)
                 # lstrip to remove any unwanted leading "/" e.g. if `bucket.key` is empty
                 key = f"{bucket.key}/{relative_path!s}".lstrip("/")
                 tags = _convert_metadata_to_s3_object_tags(meta)
