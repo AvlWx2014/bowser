@@ -1,4 +1,4 @@
-from collections.abc import Collection, Generator, Iterator, MutableSequence
+from collections.abc import Collection, Generator, MutableSequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -21,7 +21,7 @@ _CLOSE: _CLOSE_T = "close"
 @contextmanager
 def provide_BowserBackends(  # noqa: N802
     watch_root: Path, config: BowserConfig, dry_run: bool  # noqa: FBT001
-) -> Iterator[Collection[BowserBackend]]:
+) -> Generator[Collection[BowserBackend], None, None]:
     backends: MutableSequence[BowserBackend] = []
     closeables: MutableSequence[Generator[Any, _CLOSE_T, None]] = []
     for backend_config in config.backends:
