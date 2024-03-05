@@ -61,7 +61,10 @@ def provide_S3Client(  # noqa: N802
         with mock_aws():
             client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
             for bucket in config.buckets:
-                client.create_bucket(Bucket=bucket.name)
+                location = {"LocationConstraint": config.region}
+                client.create_bucket(
+                    Bucket=bucket.name, CreateBucketConfiguration=location
+                )
             _ = yield client
     else:
         client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
