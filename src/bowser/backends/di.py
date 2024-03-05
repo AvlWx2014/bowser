@@ -65,9 +65,9 @@ def provide_S3Client(  # noqa: N802
                 client.create_bucket(
                     Bucket=bucket.name, CreateBucketConfiguration=location
                 )
-            _ = yield client
     else:
         client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
-        signal = yield client
-        if signal == _CLOSE:
-            client.close()
+
+    signal = yield client
+    if signal == _CLOSE:
+        client.close()
