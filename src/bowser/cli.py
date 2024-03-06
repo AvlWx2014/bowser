@@ -21,6 +21,9 @@ pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
 LOGGER = logging.getLogger("bowser")
 
 
+READINESS_SENTINEL = Path("/tmp/.bowser.started")  # nosec B108
+
+
 @click.group
 @click.option(
     "--debug",
@@ -117,6 +120,12 @@ def watch(
             dry_run_mode,
             ", ".join(map(str, backends)),
         )
+        # support legacy sidecar mode for Kubernetes < 1.28 (with SidecarContainer feature gate)
+        # or < 1.29 (without SidecarContainer feature gate) by writing a sentinel file to indicate
+        # other containers can start up
+        # doing so here should allow enough time for the watch to actually start
+        READINESS_SENTINEL.touch(mode=0o444, exist_ok=True)
+
         commands.watch(
             root,
             backends=backends,

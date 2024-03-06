@@ -65,6 +65,7 @@ def execute(
         )
         .subscribe(AnonymousObserver())
     )
+
     # wait on the main thread until the Observer has been disposed of
     with completed:
         completed.wait()
