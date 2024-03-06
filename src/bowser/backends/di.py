@@ -57,6 +57,7 @@ def provide_S3Client(  # noqa: N802
         "use_ssl": True,
         "verify": True,
     }
+
     if dry_run:
         with mock_aws():
             client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
@@ -65,9 +66,14 @@ def provide_S3Client(  # noqa: N802
                 client.create_bucket(
                     Bucket=bucket.name, CreateBucketConfiguration=location
                 )
+            # this has to remain here, so we remain within the context of moto while the rest
+            # of the program executes
+            # moving this call outside of this `with` block means mocking by moto stops before
+            # we yield the client back to the caller
+            signal = yield client
     else:
         client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
+        signal = yield client
 
-    signal = yield client
     if signal == _CLOSE:
         client.close()
