@@ -62,8 +62,8 @@ class AwsS3Backend(BowserBackend):
             s3bucket = self._s3.Bucket(bucket.name)
             for path, meta in for_upload:
                 relative_path = path.relative_to(self.watch_root)
-                # lstrip to remove any unwanted leading "/" e.g. if `bucket.key` is empty
-                key = f"{bucket.key}/{relative_path!s}".lstrip("/")
+                # lstrip to remove any unwanted leading "/" e.g. if `bucket.prefix` is empty
+                key = f"{bucket.prefix}/{relative_path!s}".lstrip("/")
                 tags = _convert_metadata_to_s3_object_tags(meta)
                 LOGGER.info("Uploading %s to %s/%s", path, bucket.name, key)
                 s3bucket.upload_file(

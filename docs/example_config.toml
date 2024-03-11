@@ -9,4 +9,4 @@ secret_access_key = "secret squirrel stuff"
 
 [[bowser.backends.buckets]]
 name = "a literal bucket"
-key = "some/root/key"
+prefix = "some/root/prefix"

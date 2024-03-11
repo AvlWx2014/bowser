@@ -68,7 +68,7 @@ secret_access_key = "secret squirrel stuff"
 
 [[bowser.backends.buckets]]
 name = "a literal bucket"
-key = "some/root/key"
+prefix = "some/root/prefix"
 ```
 
 These select configuration fields in the root `bowser` table can be overridden with the highest
@@ -144,11 +144,11 @@ secret_access_key = "secret squirrel stuff"
 
 [[bowser.backends.buckets]]
 name = "test-bucket"
-key = "some/root/key"
+prefix = "some/root/prefix"
 
 [[bowser.backends.buckets]]
 name = "staging-bucket"
-key = ""
+prefix = ""
 
 [[bowser.backends]]
 kind = "AWS-S3"
@@ -158,7 +158,7 @@ secret_access_key = "secret squirrel stuff"
 
 [[bowser.backends.buckets]]
 name = "staging-bucket"
-key = ""
+prefix = ""
 ```
 
 The `region`, `access_key_id`, and `secret_access_key` fields are all required in order for the
@@ -169,8 +169,8 @@ Multiple `AWS-S3` backends must be configured if uploading to multiple regions i
 For each bucket the bucket `name` field needs to match the name of the bucket in the configured
 region.
 
-For each bucket the bucket `key` field is added as an additional prefix to the resulting
-object key before upload. In other words, you can use `key` to specify that content should go
+For each bucket the bucket `prefix` field is added as an additional prefix to the resulting
+object key before upload. In other words, you can use `prefix` to specify that content should go
 under a certain prefix in the target bucket.
 
 #### Implementation Details
@@ -201,8 +201,8 @@ under a certain prefix in the target bucket.
 
 then the resulting key for `test2/subtree/content.yml` will be `test2/subtree/content.yml` 
 assuming no `key` is specified in your backend bucket configuration. If your bucket definition 
-provides `key = "some/root/key` then the resulting key for `test2/subtree/content.yml` will be 
-`some/root/key/test2/subtree/content.yml`.
+provides `prefix = "some/root/prefix` then the resulting prefix for `test2/subtree/content.yml` will be 
+`some/root/prefix/test2/subtree/content.yml`.
 
 * The AWS S3 backend skips uploading any Bowser sentinel files like `.bowser.ready` or
   `.bowser.complete`.
