@@ -97,10 +97,10 @@ def test_aws_bowser_backend(
     for bucket in fake_configuration.buckets:
         expected_keys = {
             # .metadata and .bowser.{ready,complete} files should be skipped
-            f"{bucket.key}/common/ancestors/app1/content.txt".lstrip("/"),
-            f"{bucket.key}/common/ancestors/app2/subtree/content.json".lstrip("/"),
-            f"{bucket.key}/common/ancestors/app2/subtree/content.txt".lstrip("/"),
-            f"{bucket.key}/common/ancestors/app3/report.yml".lstrip("/"),
+            f"{bucket.prefix}/common/ancestors/app1/content.txt".lstrip("/"),
+            f"{bucket.prefix}/common/ancestors/app2/subtree/content.json".lstrip("/"),
+            f"{bucket.prefix}/common/ancestors/app2/subtree/content.txt".lstrip("/"),
+            f"{bucket.prefix}/common/ancestors/app3/report.yml".lstrip("/"),
         }
         s3bucket = fake_s3_client.Bucket(bucket.name)
         objects = s3bucket.objects.all()
