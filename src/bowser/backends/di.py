@@ -60,8 +60,14 @@ def provide_S3Client(  # noqa: N802
             s3 = boto3.resource("s3", **kwargs)  # type: ignore[call-overload]
             for bucket in config.buckets:
                 s3bucket = s3.Bucket(bucket.name)
-                location = {"LocationConstraint": config.region}
-                s3bucket.create(CreateBucketConfiguration=location)
+                kwargs = {}
+                if config.region != "us-east-1":
+                    # turns out that us-east-1 is not a valid location constraint region,
+                    # so only pass this on if we're not working in us-east-1
+                    kwargs["CreateBucketConfiguration"] = {
+                        "LocationConstraint": config.region
+                    }
+                s3bucket.create(**kwargs)
             # this has to remain here, so we remain within the context of moto while the rest
             # of the program executes
             # moving this call outside of this `with` block means mocking by moto stops before
