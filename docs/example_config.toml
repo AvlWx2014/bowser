@@ -10,3 +10,7 @@ secret_access_key = "secret squirrel stuff"
 [[bowser.backends.buckets]]
 name = "a literal bucket"
 prefix = "some/root/prefix"
+
+[bowser.backends.buckets.link]
+target = {kind="RegexMatch", pattern='\d{8}T\d{6}'}
+name = "latest"
