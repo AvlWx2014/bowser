@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from hamcrest import assert_that, contains_inanyorder
 
 from bowser.backends.aws import AwsS3Backend
@@ -8,10 +9,11 @@ from bowser.config.backend.aws import AwsS3BowserBackendConfig, Bucket
 from bowser.config.base import BowserConfig
 
 
-def test_provide_BowserBackends(tmp_path: Path):  # noqa: N802
+@pytest.mark.parametrize("region", ["us-east-1", "eu-west-1", "ap-southeast-3"])
+def test_provide_BowserBackends(region: str, tmp_path: Path):  # noqa: N802
     backend_config = [
         AwsS3BowserBackendConfig(
-            region="eu-west-1",  # exercise a region other than the default
+            region=region,
             access_key_id="testing",
             secret_access_key="testing",  # nosec B106
             buckets=[Bucket(name="test-bucket", key="")],
