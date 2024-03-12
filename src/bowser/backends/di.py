@@ -1,18 +1,16 @@
 from collections.abc import Collection, Generator, MutableSequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import boto3
 from moto import mock_aws
+from mypy_boto3_s3 import S3ServiceResource
 
 from ..config.backend.aws import AwsS3BowserBackendConfig
 from ..config.base import BowserConfig
 from .aws import AwsS3Backend
 from .base import BowserBackend
-
-if TYPE_CHECKING:
-    from mypy_boto3_s3 import S3Client
 
 _CLOSE_T = Literal["close"]
 _CLOSE: _CLOSE_T = "close"
@@ -32,10 +30,9 @@ def provide_BowserBackends(  # noqa: N802
                     AwsS3Backend(
                         watch_root=watch_root,
                         config=backend_config,
-                        client=next(provider),
+                        resource=next(provider),
                     )
                 )
-                closeables.append(provider)
             case _:
                 raise RuntimeError(
                     "Exhaustive match on backend config type failed to match."
@@ -49,7 +46,7 @@ def provide_BowserBackends(  # noqa: N802
 
 def provide_S3Client(  # noqa: N802
     config: AwsS3BowserBackendConfig, dry_run: bool  # noqa: FBT001
-) -> Generator["S3Client", _CLOSE_T, None]:
+) -> Generator[S3ServiceResource, None, None]:
     kwargs = {
         "region_name": config.region,
         "aws_access_key_id": config.access_key_id.get_secret_value(),
@@ -60,20 +57,16 @@ def provide_S3Client(  # noqa: N802
 
     if dry_run:
         with mock_aws():
-            client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
+            s3 = boto3.resource("s3", **kwargs)  # type: ignore[call-overload]
             for bucket in config.buckets:
+                s3bucket = s3.Bucket(bucket.name)
                 location = {"LocationConstraint": config.region}
-                client.create_bucket(
-                    Bucket=bucket.name, CreateBucketConfiguration=location
-                )
+                s3bucket.create(CreateBucketConfiguration=location)
             # this has to remain here, so we remain within the context of moto while the rest
             # of the program executes
             # moving this call outside of this `with` block means mocking by moto stops before
             # we yield the client back to the caller
-            signal = yield client
+            yield s3
     else:
-        client = boto3.client("s3", **kwargs)  # type: ignore[call-overload]
-        signal = yield client
-
-    if signal == _CLOSE:
-        client.close()
+        s3 = boto3.resource("s3", **kwargs)  # type: ignore[call-overload]
+        yield s3
