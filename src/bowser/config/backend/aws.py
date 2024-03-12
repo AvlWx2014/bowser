@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, SecretStr
 
 from ...extensions.pydantic import Literally
+from ..link import Link
 from .base import BowserBackendConfig
 
 
@@ -17,6 +18,7 @@ class Bucket(BaseModel, frozen=True):
 
     If it is not empty, then content will be sync'd under the provided key.
     """
+    link: Link | None = None
 
 
 class AwsBowserBackendConfig(BowserBackendConfig, frozen=True):
