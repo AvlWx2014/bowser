@@ -51,7 +51,7 @@ def fake_aws_credentials(fake_configuration: AwsS3BowserBackendConfig):
 @pytest.fixture
 def fake_s3_client(fake_aws_credentials):
     with mock_aws():
-        yield boto3.client("s3")
+        yield boto3.resource("s3")
 
 
 @pytest.fixture
@@ -89,7 +89,7 @@ def test_aws_bowser_backend(
     fake_workspace: Path,
 ):
     backend = AwsS3Backend(
-        watch_root=fake_workspace, config=fake_configuration, client=fake_s3_client
+        watch_root=fake_workspace, config=fake_configuration, resource=fake_s3_client
     )
     for application_tree in ("app1", "app2", "app3"):
         source = fake_workspace / "common/ancestors" / application_tree
@@ -102,7 +102,7 @@ def test_aws_bowser_backend(
             f"{bucket.key}/common/ancestors/app2/subtree/content.txt".lstrip("/"),
             f"{bucket.key}/common/ancestors/app3/report.yml".lstrip("/"),
         }
-        objects = fake_s3_client.list_objects(Bucket=bucket.name)["Contents"]
+        s3bucket = fake_s3_client.Bucket(bucket.name)
+        objects = s3bucket.objects.all()
         for obj in objects:
-            key = obj["Key"]
-            assert_that(expected_keys, has_item(key))
+            assert_that(expected_keys, has_item(obj.key))
