@@ -59,6 +59,30 @@ class AwsS3Backend(BowserBackend):
                 for_upload.append(_FileMetadataPair(local, metadata))
 
         for bucket in self._config.buckets:
+            if bucket.link is not None:
+                # first, for each bucket ensure any links are deleted before possibly being
+                # re-created
+                # assumes that links are somewhere on the path between the watch root and the tree
+                # rooted at `source`, which is the parent for all objects being uploaded
+                relative_path = source.relative_to(self.watch_root)
+                tree_prefix = f"{bucket.prefix}/{relative_path!s}".lstrip("/")
+                if bucket.link.target.matches(tree_prefix):
+                    link_prefix = bucket.link.substitute(tree_prefix)
+                    s3bucket = self._s3.Bucket(bucket.name)
+                    LOGGER.info(
+                        "Clearing link prefix %s before uploading any objects...",
+                        link_prefix,
+                    )
+                    objects = s3bucket.objects.filter(Prefix=link_prefix)
+                    response = objects.delete()
+                    deleted = sum(len(obj["Deleted"]) for obj in response)
+                    LOGGER.info(
+                        "Removed %d objects from link prefix %s...",
+                        deleted,
+                        link_prefix,
+                    )
+
+        for bucket in self._config.buckets:
             s3bucket = self._s3.Bucket(bucket.name)
             for path, meta in for_upload:
                 relative_path = path.relative_to(self.watch_root)
@@ -71,6 +95,14 @@ class AwsS3Backend(BowserBackend):
                     Key=key,
                     ExtraArgs={"Tagging": tags, "ChecksumAlgorithm": "SHA256"},
                 )
+                if bucket.link is not None and bucket.link.target.matches(key):
+                    link_key = bucket.link.substitute(key)
+                    LOGGER.info("Uploading %s to %s/%s", path, bucket.name, link_key)
+                    s3bucket.upload_file(
+                        Filename=str(path),
+                        Key=link_key,
+                        ExtraArgs={"Tagging": tags, "ChecksumAlgorithm": "SHA256"},
+                    )
                 LOGGER.info("Done.")
 
 
