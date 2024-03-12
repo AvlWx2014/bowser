@@ -2,16 +2,14 @@ import logging
 import os
 from collections.abc import Mapping, MutableSequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import Any, NamedTuple
 from urllib.parse import urlencode
+
+from mypy_boto3_s3 import S3ServiceResource
 
 from ..config.backend.aws import AwsS3BowserBackendConfig
 from ._common import get_metadata_for_file
 from .base import BowserBackend
-
-if TYPE_CHECKING:
-    from mypy_boto3_s3 import S3Client
-
 
 LOGGER = logging.getLogger("bowser")
 
@@ -27,11 +25,14 @@ class _FileMetadataPair(NamedTuple):
 class AwsS3Backend(BowserBackend):
 
     def __init__(
-        self, watch_root: Path, config: AwsS3BowserBackendConfig, client: "S3Client"
+        self,
+        watch_root: Path,
+        config: AwsS3BowserBackendConfig,
+        resource: S3ServiceResource,
     ):
         super().__init__(watch_root)
         self._config = config
-        self._client = client
+        self._s3 = resource
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(config={self._config!r})"
@@ -58,18 +59,17 @@ class AwsS3Backend(BowserBackend):
                 for_upload.append(_FileMetadataPair(local, metadata))
 
         for bucket in self._config.buckets:
+            s3bucket = self._s3.Bucket(bucket.name)
             for path, meta in for_upload:
                 relative_path = path.relative_to(self.watch_root)
                 # lstrip to remove any unwanted leading "/" e.g. if `bucket.key` is empty
                 key = f"{bucket.key}/{relative_path!s}".lstrip("/")
                 tags = _convert_metadata_to_s3_object_tags(meta)
                 LOGGER.info("Uploading %s to %s/%s", path, bucket.name, key)
-                self._client.put_object(
-                    Body=str(path),
-                    Bucket=bucket.name,
+                s3bucket.upload_file(
+                    Filename=str(path),
                     Key=key,
-                    Tagging=tags,
-                    ChecksumAlgorithm="SHA256",
+                    ExtraArgs={"Tagging": tags, "ChecksumAlgorithm": "SHA256"},
                 )
                 LOGGER.info("Done.")
 
