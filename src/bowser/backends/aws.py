@@ -2,10 +2,11 @@ import logging
 import os
 from collections.abc import Mapping, MutableSequence
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlencode
 
-from mypy_boto3_s3 import S3ServiceResource
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3ServiceResource
 
 from ..config.backend.aws import AwsS3BowserBackendConfig
 from ._common import get_metadata_for_file
@@ -28,7 +29,7 @@ class AwsS3Backend(BowserBackend):
         self,
         watch_root: Path,
         config: AwsS3BowserBackendConfig,
-        resource: S3ServiceResource,
+        resource: "S3ServiceResource",
     ):
         super().__init__(watch_root)
         self._config = config
