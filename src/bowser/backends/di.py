@@ -1,11 +1,13 @@
 from collections.abc import Collection, Generator, MutableSequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import boto3
 from moto import mock_aws
-from mypy_boto3_s3 import S3ServiceResource
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3ServiceResource
 
 from ..config.backend.aws import AwsS3BowserBackendConfig
 from ..config.base import BowserConfig
@@ -46,7 +48,7 @@ def provide_BowserBackends(  # noqa: N802
 
 def provide_S3Client(  # noqa: N802
     config: AwsS3BowserBackendConfig, dry_run: bool  # noqa: FBT001
-) -> Generator[S3ServiceResource, None, None]:
+) -> Generator["S3ServiceResource", None, None]:
     kwargs = {
         "region_name": config.region,
         "aws_access_key_id": config.access_key_id.get_secret_value(),
