@@ -1,6 +1,6 @@
 [project]
 name = "bowser"
-version = "1.0.0.dev5"
+version = "1.0.0.dev7"
 description = "A side kick application that runs as a sidecar in your Pod and warehouses your data."
 authors = [
     {name = "Ryan Smith", email = "ryan.d.smith.106@gmail.com"},
