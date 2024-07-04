@@ -76,7 +76,7 @@ class AwsS3Backend(BowserBackend):
                     )
                     objects = s3bucket.objects.filter(Prefix=link_prefix)
                     response = objects.delete()
-                    deleted = sum(len(obj["Deleted"]) for obj in response)
+                    deleted = sum(len(obj.get("Deleted", [])) for obj in response)
                     LOGGER.info(
                         "Removed %d objects from link prefix %s...",
                         deleted,
