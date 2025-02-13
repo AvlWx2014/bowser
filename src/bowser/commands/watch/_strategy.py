@@ -5,14 +5,14 @@ from pathlib import Path
 import reactivex.operators as ops
 from reactivex import Observable
 from reactivex.abc import DisposableBase, ObserverBase, SchedulerBase
+from watchdog.events import FileCreatedEvent
 
 from ...extensions.rx import ObservableTransformer
-from ...inotify import InotifyEvent, InotifyEventData
 
 LOGGER = logging.getLogger("bowser")
 
 
-class WatchStrategy(ObservableTransformer[InotifyEventData], ABC):
+class WatchStrategy(ObservableTransformer[FileCreatedEvent], ABC):
     pass
 
 
@@ -23,12 +23,10 @@ class CountWatchStrategy(WatchStrategy):
         self._n = n
 
     def __call__(
-        self, upstream: Observable[InotifyEventData]
-    ) -> Observable[InotifyEventData]:
-        def predicate(event: InotifyEventData) -> bool:
-            return (
-                InotifyEvent.CREATE in event.events and event.subject == ".bowser.ready"
-            )
+        self, upstream: Observable[FileCreatedEvent]
+    ) -> Observable[FileCreatedEvent]:
+        def predicate(event: FileCreatedEvent) -> bool:
+            return Path(event.src_path).name == ".bowser.ready"
 
         return upstream.pipe(
             ops.filter(predicate),
@@ -44,20 +42,19 @@ class SentinelWatchStrategy(WatchStrategy):
         self._sentinel = sentinel
 
     def __call__(
-        self, upstream: Observable[InotifyEventData]
-    ) -> Observable[InotifyEventData]:
+        self, upstream: Observable[FileCreatedEvent]
+    ) -> Observable[FileCreatedEvent]:
         def subscribe(
-            observer: ObserverBase[InotifyEventData],
+            observer: ObserverBase[FileCreatedEvent],
             scheduler: SchedulerBase | None = None,
         ) -> DisposableBase:
 
-            def on_next(value: InotifyEventData) -> None:
+            def on_next(value: FileCreatedEvent) -> None:
                 observer.on_next(value)
-                if (
-                    InotifyEvent.CREATE in value.events
-                    and self._watch_root == value.watch
-                    and self._sentinel == value.subject
-                ):
+
+                as_path = Path(value.src_path)
+                relative = as_path.relative_to(self._watch_root)
+                if str(relative) == self._sentinel:
                     observer.on_completed()
 
             return upstream.subscribe(
