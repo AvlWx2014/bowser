@@ -65,7 +65,10 @@ class SentinelWatchStrategy(WatchStrategy):
                     observer.on_completed()
 
             return upstream.subscribe(
-                on_next, observer.on_error, observer.on_completed, scheduler=scheduler
+                on_next=on_next,
+                on_error=observer.on_error,
+                on_completed=observer.on_completed,
+                scheduler=scheduler,
             )
 
         return Observable(subscribe)
