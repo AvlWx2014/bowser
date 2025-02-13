@@ -2,10 +2,13 @@
 # It is not intended for manual editing.
 
 [metadata]
-groups = ["default", "dev", "test", "aws"]
-strategy = ["inherit_metadata"]
-lock_version = "4.4.1"
-content_hash = "sha256:2235065fd3b1f1b9a5526aec9d149104bfa7c146c225184e6a0465f859041044"
+groups = ["default", "aws", "dev", "test"]
+strategy = []
+lock_version = "4.5.0"
+content_hash = "sha256:646a8e4acf5ec425cca6bb70b0bd03629198c5904787fc918a9dd27850252857"
+
+[[metadata.targets]]
+requires_python = ">=3.11"
 
 [[package]]
 name = "annotated-types"
