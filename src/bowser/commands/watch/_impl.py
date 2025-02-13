@@ -12,6 +12,7 @@ from watchdog.observers import Observer as FileSystemEventLoop
 
 from ...backends.base import BowserBackend
 from ...extensions.watchdog import WatchdogEventObservable
+from ._preempt import PreemptObservable
 from ._strategy import WatchStrategy
 
 LOGGER = logging.getLogger("bowser")
@@ -25,7 +26,6 @@ class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
         self._backends: Collection[BowserBackend] = backends
 
     def on_completed(self) -> None:
-        LOGGER.debug("Terminus#on_completed: upstream completed.")
         self.dispose()
 
     def on_error(self, error: Exception) -> None:
@@ -66,24 +66,19 @@ def execute(
     completed = Condition()
     origin = WatchdogEventObservable()
     terminus = Terminus(backends, on_dispose=completed)
-    # Subscribe to the source Observable. The upstream source Observable waits for
-    # subscription before events start flowing. Upstream work will happen on a dedicated thread
-    # scheduled by the scheduler passed to the Observable factory function below.
-    (
-        # wrap the source Observable in our watch strategy transformer
-        transform(origin)
-        .pipe(
-            # run the observer actions on the ThreadPoolScheduler
-            ops.observe_on(scheduler),
-        )
-        .subscribe(terminus)
-    )
+
+    origin.pipe(
+        ops.subscribe_on(scheduler),
+        ops.observe_on(scheduler),
+        PreemptObservable(root / ".bowser.abort"),
+        transform,
+    ).subscribe(terminus)
 
     loop = FileSystemEventLoop()
     loop.schedule(origin, str(root), recursive=True)
     loop.start()
 
-    # wait on the main thread until the Observer has been disposed of
+    # wait on the main thread until Terminus has been disposed of
     with completed:
         completed.wait()
 
