@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -5,7 +6,8 @@ import pytest
 import reactivex
 from hamcrest import assert_that, equal_to
 from reactivex import Observable
-from reactivex import operators as ops
+from watchdog.events import FileCreatedEvent
+from watchdog.observers import Observer as FileSystemEventLoop
 
 from bowser.backends.base import BowserBackend
 from bowser.commands.watch import CountWatchStrategy, SentinelWatchStrategy, execute
@@ -26,15 +28,30 @@ def mock_tree(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def mock_observable_for_sentinel_strategy(mock_tree: Path) -> Observable[bytes]:
+def mock_watchdog_observer() -> Iterator[FileSystemEventLoop]:
+    with patch(
+        "bowser.commands.watch._impl.FileSystemEventLoop", spec=FileSystemEventLoop
+    ) as mock_:
+        yield mock_
+        # mock_.schedule.assert_called()
+        # mock_.start.assert_called()
+        # mock_.stop.assert_called()
+
+
+@pytest.fixture
+def mock_observable_for_sentinel_strategy(
+    mock_tree: Path,
+) -> Observable[FileCreatedEvent]:
     return reactivex.of(
-        f"{mock_tree / 'test1'} CREATE .bowser.ready",
-        f"{mock_tree} CREATE .bowser.complete",
-    ).pipe(ops.map(lambda line: line.encode()))
+        FileCreatedEvent(src_path=str(mock_tree / "test1" / ".bowser.ready")),
+        FileCreatedEvent(src_path=str(mock_tree / ".bowser.complete")),
+    )
 
 
 def test_watch_command_sentinel_strategy(
-    mock_tree: Path, mock_observable_for_sentinel_strategy
+    mock_tree: Path,
+    mock_observable_for_sentinel_strategy: Observable[FileCreatedEvent],
+    mock_watchdog_observer: FileSystemEventLoop,
 ):
     """Test the watch command with as near to real functionality as is pragmatic.
 
@@ -42,12 +59,8 @@ def test_watch_command_sentinel_strategy(
     thread to perform the file operations that will make execution stop.
     """
     mock_backends = [MagicMock(spec=BowserBackend) for _ in range(3)]
-    with patch(
-        "bowser.inotify._observable.observable_background_process"
-    ) as mock_observable_background_process:
-        mock_observable_background_process.return_value = (
-            mock_observable_for_sentinel_strategy
-        )
+    with patch("bowser.commands.watch._impl.WatchdogEventObservable") as mock_upstream:
+        mock_upstream.return_value = mock_observable_for_sentinel_strategy
         execute(
             mock_tree,
             backends=mock_backends,
@@ -58,16 +71,18 @@ def test_watch_command_sentinel_strategy(
 
 
 @pytest.fixture
-def mock_observable_for_count_strategy(mock_tree: Path) -> Observable[bytes]:
+def mock_observable_for_count_strategy(mock_tree: Path) -> Observable[FileCreatedEvent]:
     return reactivex.of(
-        f"{mock_tree / 'test1'} CREATE .bowser.ready",
-        f"{mock_tree / 'test2'} CREATE .bowser.ready",
-        f"{mock_tree / 'test3'} CREATE .bowser.ready",
-    ).pipe(ops.map(lambda line: line.encode()))
+        FileCreatedEvent(src_path=str(mock_tree / "test1" / ".bowser.ready")),
+        FileCreatedEvent(src_path=str(mock_tree / "test2" / ".bowser.ready")),
+        FileCreatedEvent(src_path=str(mock_tree / "test3" / ".bowser.ready")),
+    )
 
 
 def test_watch_command_count_strategy(
-    mock_tree: Path, mock_observable_for_count_strategy
+    mock_tree: Path,
+    mock_observable_for_count_strategy: Observable[FileCreatedEvent],
+    mock_watchdog_observer: FileSystemEventLoop,
 ):
     """Test the watch command using a count strategy.
 
@@ -78,11 +93,7 @@ def test_watch_command_count_strategy(
     """
     n = 3
     mock_backend = MagicMock(spec=BowserBackend)
-    with patch(
-        "bowser.inotify._observable.observable_background_process"
-    ) as mock_observable_background_process:
-        mock_observable_background_process.return_value = (
-            mock_observable_for_count_strategy
-        )
+    with patch("bowser.commands.watch._impl.WatchdogEventObservable") as mock_upstream:
+        mock_upstream.return_value = mock_observable_for_count_strategy
         execute(mock_tree, backends=[mock_backend], transform=CountWatchStrategy(n=n))
     assert_that(mock_backend.upload.call_count, equal_to(n))
