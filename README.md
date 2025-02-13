@@ -209,7 +209,3 @@ provides `prefix = "some/root/prefix` then the resulting prefix for `test2/subtr
 * The AWS S3 backend skips any files with the suffix `.metadata`. It is assumed that `.metadata`
   files are JSON-encoded files with a flat structure of `key: value` pairs of strings. These are
   then translated in to object tags in S3 and as such are subject to the same limitations.
-* The system call `inotify` is leveraged for watching the tree rooted at `DIR` through 
-  `inotifywait`, which is part of the package `inotify-tools`. `inotifywait` is run using the 
-  options `-rmq` i.e. `--recursive`, `--monitor`, and `--quiet` respectively.
-
