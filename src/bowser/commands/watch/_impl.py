@@ -32,8 +32,11 @@ class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
         LOGGER.error("Unhandled exception in upstream Observable.", exc_info=error)
         self.dispose()
 
-    def on_next(self, value: FileCreatedEvent) -> None:
-        if (as_path := Path(value.src_path)).name == ".bowser.ready":
+    def on_next(self, event: FileCreatedEvent) -> None:
+        src = event.src_path
+        if isinstance(src, bytes):
+            src = src.decode("utf-8")
+        if (as_path := Path(src)).name == ".bowser.ready":
             for backend in self._backends:
                 try:
                     backend.upload(as_path.parent)

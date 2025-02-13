@@ -26,7 +26,10 @@ class CountWatchStrategy(WatchStrategy):
         self, upstream: Observable[FileCreatedEvent]
     ) -> Observable[FileCreatedEvent]:
         def predicate(event: FileCreatedEvent) -> bool:
-            return Path(event.src_path).name == ".bowser.ready"
+            src = event.src_path
+            if isinstance(src, bytes):
+                src = src.decode("utf-8")
+            return Path(src).name == ".bowser.ready"
 
         return upstream.pipe(
             ops.filter(predicate),
@@ -49,10 +52,14 @@ class SentinelWatchStrategy(WatchStrategy):
             scheduler: SchedulerBase | None = None,
         ) -> DisposableBase:
 
-            def on_next(value: FileCreatedEvent) -> None:
-                observer.on_next(value)
+            def on_next(event: FileCreatedEvent) -> None:
+                observer.on_next(event)
 
-                as_path = Path(value.src_path)
+                src = event.src_path
+                if isinstance(src, bytes):
+                    src = src.decode("utf-8")
+
+                as_path = Path(src)
                 relative = as_path.relative_to(self._watch_root)
                 if str(relative) == self._sentinel:
                     observer.on_completed()
