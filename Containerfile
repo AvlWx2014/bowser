@@ -1,15 +1,11 @@
 FROM registry.access.redhat.com/ubi9/python-311:latest
 USER root
 
-# Install EPEL repositories for inotify-tools
-RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-
 # Install System Dependencies
 ENV DNF_OPTS="--setopt=install_weak_deps=False --setopt=tsflags=nodocs"
 RUN dnf update -y && \
     dnf install -y ${DNF_OPTS} \
                 python3-pip \
-                inotify-tools \
  && dnf clean all -y
 
 # Install PDM
