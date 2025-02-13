@@ -53,10 +53,10 @@ def test_watch_command_sentinel_strategy(
     mock_observable_for_sentinel_strategy: Observable[FileCreatedEvent],
     mock_watchdog_observer: FileSystemEventLoop,
 ):
-    """Test the watch command with as near to real functionality as is pragmatic.
+    """Test the watch command with the --sentinel strategy.
 
-    The watch command blocks the main thread until it's complete, so use a background
-    thread to perform the file operations that will make execution stop.
+    The watch command blocks the main thread until execution is complete denoted
+    by the appearance of the sentinel file.
     """
     mock_backends = [MagicMock(spec=BowserBackend) for _ in range(3)]
     with patch("bowser.commands.watch._impl.WatchdogEventObservable") as mock_upstream:
@@ -68,6 +68,39 @@ def test_watch_command_sentinel_strategy(
         )
     for mock_backend in mock_backends:
         mock_backend.upload.assert_called_once_with(mock_tree / "test1")
+
+
+@pytest.fixture
+def mock_preempted_observable_for_sentinel_strategy(
+    mock_tree: Path,
+) -> Observable[FileCreatedEvent]:
+    return reactivex.of(
+        FileCreatedEvent(src_path=str(mock_tree / ".bowser.abort")),
+        FileCreatedEvent(src_path=str(mock_tree / "test1" / ".bowser.ready")),
+        FileCreatedEvent(src_path=str(mock_tree / ".bowser.complete")),
+    )
+
+
+def test_watch_command_preempt_sentinel_strategy(
+    mock_tree: Path,
+    mock_preempted_observable_for_sentinel_strategy: Observable[FileCreatedEvent],
+    mock_watchdog_observer: FileSystemEventLoop,
+):
+    """Test the watch command with the --sentinel strategy.
+
+    This tests that the event stream is preempted by the PreemptObservable when
+    the sentinel file appears no matter what events are yet to come.
+    """
+    mock_backends = [MagicMock(spec=BowserBackend) for _ in range(3)]
+    with patch("bowser.commands.watch._impl.WatchdogEventObservable") as mock_upstream:
+        mock_upstream.return_value = mock_preempted_observable_for_sentinel_strategy
+        execute(
+            mock_tree,
+            backends=mock_backends,
+            transform=SentinelWatchStrategy(mock_tree, sentinel=".bowser.complete"),
+        )
+    for mock_backend in mock_backends:
+        mock_backend.upload.assert_not_called()
 
 
 @pytest.fixture
@@ -97,3 +130,28 @@ def test_watch_command_count_strategy(
         mock_upstream.return_value = mock_observable_for_count_strategy
         execute(mock_tree, backends=[mock_backend], transform=CountWatchStrategy(n=n))
     assert_that(mock_backend.upload.call_count, equal_to(n))
+
+
+@pytest.fixture
+def mock_preempted_observable_for_count_strategy(
+    mock_tree: Path,
+) -> Observable[FileCreatedEvent]:
+    return reactivex.of(
+        FileCreatedEvent(src_path=str(mock_tree / "test1" / ".bowser.ready")),
+        FileCreatedEvent(src_path=str(mock_tree / ".bowser.abort")),
+        FileCreatedEvent(src_path=str(mock_tree / "test2" / ".bowser.ready")),
+        FileCreatedEvent(src_path=str(mock_tree / "test3" / ".bowser.ready")),
+    )
+
+
+def test_watch_command_preempt_count_strategy(
+    mock_tree: Path,
+    mock_preempted_observable_for_count_strategy: Observable[FileCreatedEvent],
+    mock_watchdog_observer: FileSystemEventLoop,
+):
+    n = 3
+    mock_backend = MagicMock(spec=BowserBackend)
+    with patch("bowser.commands.watch._impl.WatchdogEventObservable") as mock_upstream:
+        mock_upstream.return_value = mock_preempted_observable_for_count_strategy
+        execute(mock_tree, backends=[mock_backend], transform=CountWatchStrategy(n=n))
+    assert_that(mock_backend.upload.call_count, equal_to(1))
