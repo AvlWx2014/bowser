@@ -25,16 +25,28 @@ class CountWatchStrategy(WatchStrategy):
     def __call__(
         self, upstream: Observable[FileCreatedEvent]
     ) -> Observable[FileCreatedEvent]:
+
         def predicate(event: FileCreatedEvent) -> bool:
             src = event.src_path
             if isinstance(src, bytes):
                 src = src.decode("utf-8")
             return Path(src).name == ".bowser.ready"
 
-        return upstream.pipe(
-            ops.filter(predicate),
-            ops.take(self._n),
-        )
+        def subscribe(
+            observer: ObserverBase[FileCreatedEvent],
+            scheduler: SchedulerBase | None = None,
+        ) -> DisposableBase:
+            return upstream.pipe(
+                ops.filter(predicate),
+                ops.take(self._n),
+            ).subscribe(
+                on_next=observer.on_next,
+                on_error=observer.on_error,
+                on_completed=observer.on_completed,
+                scheduler=scheduler,
+            )
+
+        return Observable(subscribe)
 
 
 class SentinelWatchStrategy(WatchStrategy):
