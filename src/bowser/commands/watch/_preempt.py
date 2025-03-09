@@ -7,7 +7,7 @@ from watchdog.events import FileCreatedEvent
 
 from bowser.extensions.rx import ObservableTransformer
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("bowser")
 
 
 class PreemptObservable(ObservableTransformer[FileCreatedEvent]):
@@ -28,6 +28,7 @@ class PreemptObservable(ObservableTransformer[FileCreatedEvent]):
                     src = src.decode("utf-8")
                 as_path = Path(src)
                 if as_path == self._sentinel:
+                    LOGGER.info("Abort signal detected")
                     observer.on_completed()
                 else:
                     observer.on_next(event)

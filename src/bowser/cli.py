@@ -86,6 +86,16 @@ def _validate_count(_: click.Context, __: str, value: int | None) -> int | None:
         "Must be >= 1."
     ),
 )
+@click.option(
+    "-p",
+    "--preempt-sentinel",
+    type=Path,
+    default=None,
+    help=(
+        "If present, this particular sentinel file will be used as a signal to abort,"
+        "preempting whatever is passed for --strategy. Default: DIR/.bowser.abort"
+    ),
+)
 @click.argument("root", metavar="DIR", type=click.Path(path_type=Path, exists=True))
 @pass_config
 def watch(
@@ -93,6 +103,7 @@ def watch(
     dry_run: bool,  # noqa: FBT001
     strategy: WatchType,
     count: int | None,
+    preempt_sentinel: Path | None,
     root: Path,
 ) -> None:
     """Watch DIR (recursively) and upload trees marked as ready.
@@ -130,6 +141,7 @@ def watch(
             root,
             backends=backends,
             transform=watch_strategy,
+            preempt_sentinel=preempt_sentinel or (root / ".bowser.abort"),
         )
 
     LOGGER.info("Exiting.")

@@ -58,6 +58,7 @@ def execute(
     root: Path,
     backends: Collection[BowserBackend],
     transform: WatchStrategy,
+    preempt_sentinel: Path,
 ) -> None:
     cpus = os.cpu_count() or 1
     workers = max(cpus, 1)
@@ -70,7 +71,7 @@ def execute(
     origin.pipe(
         ops.subscribe_on(scheduler),
         ops.observe_on(scheduler),
-        PreemptObservable(root / ".bowser.abort"),
+        PreemptObservable(sentinel=preempt_sentinel),
         transform,
     ).subscribe(terminus)
 
