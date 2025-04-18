@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, SecretStr
@@ -19,6 +20,12 @@ class Bucket(BaseModel, frozen=True):
     If it is not empty, then content will be sync'd under the provided key.
     """
     link: Link | None = None
+
+    def __truediv__(self, other: Path | str) -> str:
+        return self.join_prefix(other)
+
+    def join_prefix(self, prefix: Path | str) -> str:
+        return f"{self.prefix}/{prefix!s}".lstrip("/")
 
 
 class AwsBowserBackendConfig(BowserBackendConfig, frozen=True):
