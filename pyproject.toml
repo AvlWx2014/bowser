@@ -73,6 +73,10 @@ py_version = 311
 exclude_dirs = [".venv", ".*_cache", ".pdm-build", "docs", "htmlcov", ".gitlab"]
 skips = ["B404"]
 
+# B101: Test for use of assert
+[tool.bandit.assert_used]
+skips = ["*_test.py", "*test_*.py"]
+
 [tool.mypy]
 python_version = "3.11"
 exclude = '\.venv\.*'
