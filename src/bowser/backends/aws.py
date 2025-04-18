@@ -78,7 +78,7 @@ class AwsS3Backend(BowserBackend):
         """
         source_as_relative_path = source.relative_to(self.watch_root)
         for bucket in self._config.buckets:
-            source_prefix = f"{bucket.prefix}/{source_as_relative_path!s}"
+            source_prefix = bucket / source_as_relative_path
             # clear link
             if bucket.link is not None:
                 # first, for each bucket ensure any links are deleted before possibly being
@@ -113,9 +113,8 @@ class AwsS3Backend(BowserBackend):
                     for_upload.append(_FileMetadataPair(local, metadata))
 
             for path, meta in for_upload:
-                source_as_relative_path = path.relative_to(self.watch_root)
-                # lstrip to remove any unwanted leading "/" e.g. if `bucket.prefix` is empty
-                key = f"{bucket.prefix}/{source_as_relative_path!s}".lstrip("/")
+                as_relative_path = path.relative_to(self.watch_root)
+                key = bucket / as_relative_path
                 tags = _convert_metadata_to_s3_object_tags(meta)
                 LOGGER.info("Uploading %s to %s/%s", path, bucket.name, key)
                 s3bucket.upload_file(
