@@ -77,7 +77,8 @@ class Link(BaseModel, frozen=True):
             >>> link_key = link.substitute(object_key)
             >>> assert link_key == "some/prefix/latest/report.json"
 
-        ValueError: If nothing matches ``target``.
+        Raises:
+            ValueError: If nothing matches ``target``.
         """
         if not self.target.matches(string):
             raise ValueError(f"'{string}' does not match link target.")
@@ -88,7 +89,7 @@ class Link(BaseModel, frozen=True):
                 substitution = self.target.pattern.sub(self.name, string)
             case _:
                 raise RuntimeError(
-                    "Exhaustive match on LinkTargetMatcherT filed to match."
+                    "Exhaustive match on LinkTargetMatcherT failed to match."
                     f"Unknown match type: '{type(self.target)}'"
                 )
         return substitution
