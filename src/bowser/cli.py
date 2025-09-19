@@ -24,6 +24,14 @@ LOGGER = logging.getLogger("bowser")
 READINESS_SENTINEL = Path("/tmp/.bowser.started")  # nosec B108
 
 
+def notify_started_compat() -> None:
+    # support legacy sidecar mode for Kubernetes < 1.28 (with SidecarContainer feature gate)
+    # or < 1.29 (without SidecarContainer feature gate) by writing a sentinel file to indicate
+    # other containers can start up
+    # doing so here should allow enough time for the watch to actually start
+    READINESS_SENTINEL.touch(mode=0o444, exist_ok=True)
+
+
 @click.group
 @click.option(
     "--debug",
@@ -131,17 +139,13 @@ def watch(
             dry_run_mode,
             ", ".join(map(str, backends)),
         )
-        # support legacy sidecar mode for Kubernetes < 1.28 (with SidecarContainer feature gate)
-        # or < 1.29 (without SidecarContainer feature gate) by writing a sentinel file to indicate
-        # other containers can start up
-        # doing so here should allow enough time for the watch to actually start
-        READINESS_SENTINEL.touch(mode=0o444, exist_ok=True)
 
         commands.watch(
             root,
             backends=backends,
             transform=watch_strategy,
             preempt_sentinel=preempt_sentinel or (root / ".bowser.abort"),
+            on_start=notify_started_compat,
         )
 
     LOGGER.info("Exiting.")

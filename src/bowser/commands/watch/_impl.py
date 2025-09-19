@@ -1,6 +1,6 @@
 import logging
 import os
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path
 from threading import Condition
 
@@ -59,6 +59,7 @@ def execute(
     backends: Collection[BowserBackend],
     transform: WatchStrategy,
     preempt_sentinel: Path,
+    on_start: Callable[[], None] | None = None,
 ) -> None:
     cpus = os.cpu_count() or 1
     workers = max(cpus, 1)
@@ -78,6 +79,9 @@ def execute(
     loop = FileSystemEventLoop()
     loop.schedule(origin, str(root), recursive=True)
     loop.start()
+
+    if on_start is not None:
+        on_start()
 
     # wait on the main thread until Terminus has been disposed of
     with completed:
