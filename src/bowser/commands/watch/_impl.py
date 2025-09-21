@@ -73,6 +73,13 @@ def execute(
         ops.subscribe_on(scheduler),
         ops.observe_on(scheduler),
         PreemptObservable(sentinel=preempt_sentinel),
+        # Ignore: Mypy attr-defined
+        # Reason: In this form, mypy complains that the lambda parameter is
+        #  type _T and thus does not have enough information to infer the
+        #  presence of the attribute "src_path", but if I add an explicit
+        #  cast(FileCreatedEvent, it).src_path it complains about an unnecessary
+        #  cast to FileCreatedEvent.
+        ops.distinct(lambda it: it.src_path),  # type: ignore[attr-defined]
         transform,
     ).subscribe(terminus)
 
