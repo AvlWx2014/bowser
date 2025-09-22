@@ -1,6 +1,7 @@
 from collections.abc import Generator, Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from threading import Thread
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import reactivex
@@ -193,3 +194,46 @@ def test_watch_command_preempt_custom_sentinel(
         )
     for mock_backend in mock_backends:
         mock_backend.upload.assert_not_called()
+
+
+@pytest.fixture
+def mock_external_process(mock_tree: Path) -> Thread:
+    class ExternalProcess(Thread):
+        def __init__(self, write_to: Path) -> None:
+            super().__init__()
+            self._write_to = write_to
+
+        def run(self) -> None:
+            parent = self._write_to / "mock_external_process"
+            parent.mkdir(parents=True, exist_ok=True)
+            for file in ("test1.txt", "test2.json", "test3.yml", ".bowser.ready"):
+                (parent / file).touch()
+
+    return ExternalProcess(mock_tree)
+
+
+def test_watch_command_simulate_restart(
+    mock_tree: Path,
+    mock_external_process: Thread,
+) -> None:
+    mock_backend = MagicMock(spec=BowserBackend)
+    # pretend we have restarted and have to pick up on events we may have missed
+    for subdir in ("test1", "test2", "test3"):
+        (mock_tree / subdir / ".bowser.ready").touch()
+
+    execute(
+        mock_tree,
+        backends=[mock_backend],
+        transform=CountWatchStrategy(n=4),
+        preempt_sentinel=mock_tree / ".bowser.abort",
+        on_start=mock_external_process.start,
+    )
+    mock_external_process.join(timeout=5)
+
+    mock_backend.upload.assert_has_calls(
+        [
+            call(mock_tree / node)
+            for node in ("mock_external_process", "test1", "test2", "test3")
+        ],
+        any_order=True,
+    )
