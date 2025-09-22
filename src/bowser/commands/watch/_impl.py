@@ -3,15 +3,17 @@ import os
 from collections.abc import Callable, Collection
 from pathlib import Path
 from threading import Condition
+from typing import cast
 
+from reactivex import Observable
 from reactivex import operators as ops
 from reactivex.abc import DisposableBase, ObserverBase
 from reactivex.scheduler import ThreadPoolScheduler
-from watchdog.events import FileCreatedEvent
+from watchdog.events import FileCreatedEvent, FileSystemEventHandler
 from watchdog.observers import Observer as FileSystemEventLoop
 
 from ...backends.base import BowserBackend
-from ...extensions.watchdog import WatchdogEventObservable
+from ...extensions.watchdog import ReplayEventsObservable, WatchdogEventObservable
 from ._preempt import PreemptObservable
 from ._strategy import WatchStrategy
 
@@ -65,8 +67,10 @@ def execute(
     workers = max(cpus, 1)
     scheduler = ThreadPoolScheduler(max_workers=workers)
 
-    completed = Condition()
-    origin = WatchdogEventObservable()
+    completed = Event()
+    realtime: Observable[FileCreatedEvent] = WatchdogEventObservable()
+    replay: Observable[FileCreatedEvent] = ReplayEventsObservable(root=root)
+    origin: Observable[FileCreatedEvent] = realtime.pipe(ops.merge(replay))
     terminus = Terminus(backends, on_dispose=completed)
 
     origin.pipe(
@@ -83,8 +87,11 @@ def execute(
         transform,
     ).subscribe(terminus)
 
+    # TODO: might make sense to move this to the WatchdogEventObservable
+    #  and have it start the loop on subscribe, and stop the loop on completion
+    #  or disposal.
     loop = FileSystemEventLoop()
-    loop.schedule(origin, str(root), recursive=True)
+    loop.schedule(cast(FileSystemEventHandler, realtime), str(root), recursive=True)
     loop.start()
 
     if on_start is not None:
