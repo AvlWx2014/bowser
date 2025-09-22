@@ -2,7 +2,7 @@ import logging
 import os
 from collections.abc import Callable, Collection
 from pathlib import Path
-from threading import Condition
+from threading import Event
 from typing import cast
 
 from reactivex import Observable
@@ -21,9 +21,7 @@ LOGGER = logging.getLogger("bowser")
 
 
 class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
-    def __init__(
-        self, backends: Collection[BowserBackend], on_dispose: Condition
-    ) -> None:
+    def __init__(self, backends: Collection[BowserBackend], on_dispose: Event) -> None:
         self._on_dispose = on_dispose
         self._backends: Collection[BowserBackend] = backends
 
@@ -52,8 +50,7 @@ class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
                     )
 
     def dispose(self) -> None:
-        with self._on_dispose:
-            self._on_dispose.notify_all()
+        self._on_dispose.set()
 
 
 def execute(
@@ -97,9 +94,7 @@ def execute(
     if on_start is not None:
         on_start()
 
-    # wait on the main thread until Terminus has been disposed of
-    with completed:
-        completed.wait()
+    completed.wait()
 
     loop.stop()
     loop.join()
