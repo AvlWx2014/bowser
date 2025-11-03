@@ -1,0 +1,27 @@
+[package]
+name = "bowser"
+version = "2.0.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.48", features = ["derive"] }
+config = { version = "0.15.18", features = ["toml"] }
+notify = { version = "8.2.0", features = ["serde"] }
+sec = { version = "1.0.0", features = ["deserialize", "serde", "serialize"] }
+serde = { version = "1.0.228", features = ["derive"] }
+tokio = { version = "1.47.1", features = ["io-std", "io-util", "fs", "time", "rt", "rt-multi-thread", "macros", "net", "full"] }
+tokio-stream = { version = "0.1.17", features = ["full"] }
+xdg = { version = "3.0.0", features = ["serde"] }
+futures = "0.3.31"
+pin-project-lite = "0.2.16"
+walkdir = "2.5.0"
+async-stream = "0.3.6"
+derive_more = { version = "2.0.1", features = ["from", "is_variant", "try_from"] }
+async-trait = "0.1.89"
+pathdiff = "0.2.3"
+aws-config = "1.8.7"
+aws-credential-types = { version = "1.2.7", features = ["hardcoded-credentials"] }
+aws-sdk-s3 = { version = "1.107.0", features = ["behavior-version-latest"] }
+sha2 = "0.10.9"
+base64 = "0.22.1"
+ignore = "0.4.25"
