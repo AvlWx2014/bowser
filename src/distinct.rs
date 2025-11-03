@@ -106,3 +106,152 @@ where
         }
     }
 }
+
+/// Tests authored by Claude Sonnet 4.5.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::stream::{self, StreamExt};
+
+    #[tokio::test]
+    async fn test_distinct_empty_stream() {
+        let input: Vec<i32> = vec![];
+        let result: Vec<i32> = stream::iter(input)
+            .distinct()
+            .collect()
+            .await;
+
+        assert_eq!(result, Vec::<i32>::new());
+    }
+
+    #[tokio::test]
+    async fn test_distinct_no_duplicates() {
+        let input = vec![1, 2, 3, 4, 5];
+        let result: Vec<i32> = stream::iter(input.clone())
+            .distinct()
+            .collect()
+            .await;
+
+        assert_eq!(result, input);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_with_duplicates() {
+        let input = vec![1, 2, 2, 3, 1, 4, 3, 5];
+        let result: Vec<i32> = stream::iter(input)
+            .distinct()
+            .collect()
+            .await;
+
+        assert_eq!(result, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_all_same() {
+        let input = vec![1, 1, 1, 1, 1];
+        let result: Vec<i32> = stream::iter(input)
+            .distinct()
+            .collect()
+            .await;
+
+        assert_eq!(result, vec![1]);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_with_strings() {
+        let input = vec!["apple", "banana", "apple", "cherry", "banana"];
+        let result: Vec<&str> = stream::iter(input)
+            .distinct()
+            .collect()
+            .await;
+
+        assert_eq!(result, vec!["apple", "banana", "cherry"]);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_preserves_order() {
+        let input = vec![3, 1, 4, 1, 5, 9, 2, 6, 5];
+        let result: Vec<i32> = stream::iter(input)
+            .distinct()
+            .collect()
+            .await;
+
+        // Should preserve first occurrence order
+        assert_eq!(result, vec![3, 1, 4, 5, 9, 2, 6]);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_by_empty_stream() {
+        let input: Vec<(i32, &str)> = vec![];
+        let result: Vec<(i32, &str)> = stream::iter(input)
+            .distinct_by(|item| item.0)
+            .collect()
+            .await;
+
+        assert_eq!(result, Vec::<(i32, &str)>::new());
+    }
+
+    #[tokio::test]
+    async fn test_distinct_by_key_selector() {
+        let input = vec![
+            (1, "apple"),
+            (2, "banana"),
+            (1, "apricot"),  // Same key as first
+            (3, "cherry"),
+            (2, "blueberry"), // Same key as second
+        ];
+
+        let result: Vec<(i32, &str)> = stream::iter(input)
+            .distinct_by(|item| item.0)
+            .collect()
+            .await;
+
+        assert_eq!(result, vec![
+            (1, "apple"),
+            (2, "banana"),
+            (3, "cherry"),
+        ]);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_by_complex_key() {
+        #[derive(Debug, Clone, PartialEq)]
+        struct Person {
+            id: u32,
+            name: String,
+            age: u32,
+        }
+
+        let input = vec![
+            Person { id: 1, name: "Alice".to_string(), age: 30 },
+            Person { id: 2, name: "Bob".to_string(), age: 25 },
+            Person { id: 1, name: "Alice Smith".to_string(), age: 31 },  // Same ID
+        ];
+
+        let result: Vec<Person> = stream::iter(input.clone())
+            .distinct_by(|p| p.id)
+            .collect()
+            .await;
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].id, 1);
+        assert_eq!(result[1].id, 2);
+    }
+
+    #[tokio::test]
+    async fn test_distinct_by_preserves_first() {
+        let input = vec![
+            (1, "first"),
+            (1, "second"),
+            (1, "third"),
+        ];
+
+        let result: Vec<(i32, &str)> = stream::iter(input)
+            .distinct_by(|item| item.0)
+            .collect()
+            .await;
+
+        // Should keep the first occurrence
+        assert_eq!(result, vec![(1, "first")]);
+    }
+}

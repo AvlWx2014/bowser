@@ -92,9 +92,9 @@ pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, 
                     let dry_run = config.bowser.dry_run.unwrap_or_default();
 
                     async move {
-                        let fut = if dry_run { 
+                        let fut = if dry_run {
                             backend.upload_dry_run(&parent, &ignore)
-                        } else { 
+                        } else {
                             backend.upload(&parent, &ignore)
                         };
                         let _ = fut.await;
@@ -106,4 +106,252 @@ pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, 
     }).await;
 
     Ok(())
+}
+
+/// Tests authored by Claude Sonnet 4.5.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::appconfig::{AppConfig, BowserConfig};
+    use async_trait::async_trait;
+    use ignore::gitignore::Gitignore;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+    use tokio::fs::File;
+    use tokio::time::{sleep, Duration};
+
+    /// Mock backend that tracks upload calls for testing
+    #[derive(Clone)]
+    struct MockBackend {
+        root: PathBuf,
+        uploaded: Arc<Mutex<Vec<PathBuf>>>,
+        dry_run_uploaded: Arc<Mutex<Vec<PathBuf>>>,
+    }
+
+    impl MockBackend {
+        fn new(root: PathBuf) -> Self {
+            Self {
+                root,
+                uploaded: Arc::new(Mutex::new(Vec::new())),
+                dry_run_uploaded: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn get_uploaded(&self) -> Vec<PathBuf> {
+            self.uploaded.lock().unwrap().clone()
+        }
+
+        fn get_dry_run_uploaded(&self) -> Vec<PathBuf> {
+            self.dry_run_uploaded.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl BowserBackend for MockBackend {
+        fn watch_root(&self) -> PathBuf {
+            self.root.clone()
+        }
+
+        async fn upload(&self, tree: &PathBuf, _ignore: &Gitignore) -> crate::backends::Result<()> {
+            self.uploaded.lock().unwrap().push(tree.clone());
+            Ok(())
+        }
+
+        async fn upload_dry_run(&self, tree: &PathBuf, _ignore: &Gitignore) -> crate::backends::Result<()> {
+            self.dry_run_uploaded.lock().unwrap().push(tree.clone());
+            Ok(())
+        }
+    }
+
+    fn create_test_config(dry_run: bool) -> AppConfig {
+        AppConfig {
+            bowser: BowserConfig {
+                dry_run: Some(dry_run),
+                backends: vec![],
+                ignore: vec![],
+            },
+        }
+    }
+
+    async fn create_sentinel_file(dir: &PathBuf, filename: &str) -> std::io::Result<()> {
+        let path = dir.join(filename);
+        File::create(path).await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_watch_count_strategy_single_ready() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+        let data_dir = root.join("data1");
+        tokio::fs::create_dir(&data_dir).await.unwrap();
+
+        let mock_backend = MockBackend::new(root.clone());
+        let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
+
+        // Create a .bowser.ready file
+        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+
+        let config = create_test_config(false);
+        let strategy = Strategy::Count(1);
+
+        // Give the file system a moment to register the event
+        sleep(Duration::from_millis(100)).await;
+
+        // Run watch with count strategy (should process 1 ready sentinel)
+        watch(config, root.clone(), strategy, backends).await.unwrap();
+
+        // Verify the backend received the upload call
+        let uploaded = mock_backend.get_uploaded();
+        assert_eq!(uploaded.len(), 1);
+        assert_eq!(uploaded[0], data_dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_watch_count_strategy_multiple_ready() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+
+        let data_dir1 = root.join("data1");
+        let data_dir2 = root.join("data2");
+        tokio::fs::create_dir(&data_dir1).await.unwrap();
+        tokio::fs::create_dir(&data_dir2).await.unwrap();
+
+        let mock_backend = MockBackend::new(root.clone());
+        let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
+
+        // Create ready sentinels
+        create_sentinel_file(&data_dir1, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&data_dir2, ".bowser.ready").await.unwrap();
+
+        let config = create_test_config(false);
+        let strategy = Strategy::Count(2);
+
+        sleep(Duration::from_millis(100)).await;
+
+        watch(config, root.clone(), strategy, backends).await.unwrap();
+
+        let uploaded = mock_backend.get_uploaded();
+        assert_eq!(uploaded.len(), 2);
+        assert!(uploaded.contains(&data_dir1));
+        assert!(uploaded.contains(&data_dir2));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_watch_sentinel_strategy_stops_on_complete() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+
+        let data_dir = root.join("data1");
+        tokio::fs::create_dir(&data_dir).await.unwrap();
+
+        let mock_backend = MockBackend::new(root.clone());
+        let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
+
+        // Create ready sentinel then complete sentinel
+        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&root, ".bowser.complete").await.unwrap();
+
+        let config = create_test_config(false);
+        let strategy = Strategy::Sentinel;
+
+        sleep(Duration::from_millis(100)).await;
+
+        watch(config, root.clone(), strategy, backends).await.unwrap();
+
+        // Should have processed the ready, but stopped before any future events
+        let uploaded = mock_backend.get_uploaded();
+        assert_eq!(uploaded.len(), 1);
+        assert_eq!(uploaded[0], data_dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_watch_dry_run_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+        let data_dir = root.join("data1");
+        tokio::fs::create_dir(&data_dir).await.unwrap();
+
+        let mock_backend = MockBackend::new(root.clone());
+        let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
+
+        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+
+        let config = create_test_config(true); // dry_run = true
+        let strategy = Strategy::Count(1);
+
+        sleep(Duration::from_millis(100)).await;
+
+        watch(config, root.clone(), strategy, backends).await.unwrap();
+
+        // Should call dry_run, not regular upload
+        let uploaded = mock_backend.get_uploaded();
+        let dry_run_uploaded = mock_backend.get_dry_run_uploaded();
+
+        assert_eq!(uploaded.len(), 0);
+        assert_eq!(dry_run_uploaded.len(), 1);
+        assert_eq!(dry_run_uploaded[0], data_dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_watch_multiple_backends() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+        let data_dir = root.join("data1");
+        tokio::fs::create_dir(&data_dir).await.unwrap();
+
+        let mock_backend1 = MockBackend::new(root.clone());
+        let mock_backend2 = MockBackend::new(root.clone());
+        let backends: Vec<Box<dyn BowserBackend>> = vec![
+            Box::new(mock_backend1.clone()),
+            Box::new(mock_backend2.clone()),
+        ];
+
+        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+
+        let config = create_test_config(false);
+        let strategy = Strategy::Count(1);
+
+        sleep(Duration::from_millis(100)).await;
+
+        watch(config, root.clone(), strategy, backends).await.unwrap();
+
+        // Both backends should receive the upload
+        let uploaded1 = mock_backend1.get_uploaded();
+        let uploaded2 = mock_backend2.get_uploaded();
+
+        assert_eq!(uploaded1.len(), 1);
+        assert_eq!(uploaded2.len(), 1);
+        assert_eq!(uploaded1[0], data_dir);
+        assert_eq!(uploaded2[0], data_dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_watch_ignores_non_sentinel_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().to_path_buf();
+        let data_dir = root.join("data1");
+        tokio::fs::create_dir(&data_dir).await.unwrap();
+
+        let mock_backend = MockBackend::new(root.clone());
+        let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
+
+        // Create regular files (should be ignored)
+        create_sentinel_file(&data_dir, "regular.txt").await.unwrap();
+        create_sentinel_file(&data_dir, "data.json").await.unwrap();
+
+        // Create one ready sentinel
+        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+
+        let config = create_test_config(false);
+        let strategy = Strategy::Count(1);
+
+        sleep(Duration::from_millis(100)).await;
+
+        watch(config, root.clone(), strategy, backends).await.unwrap();
+
+        // Should only process the sentinel, not regular files
+        let uploaded = mock_backend.get_uploaded();
+        assert_eq!(uploaded.len(), 1);
+    }
 }
