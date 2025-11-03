@@ -1,13 +1,9 @@
 use crate::Result;
+use futures::Stream;
+use notify::{recommended_watcher, Event, Watcher};
 use std::path::PathBuf;
-use futures::future::ready;
-use futures::{Stream, StreamExt};
-use notify::{recommended_watcher, Event, EventKind, Watcher};
-use notify::event::CreateKind;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use crate::distinct::DistinctStreamExt;
-use crate::sentinel::Sentinel;
 
 /// Stream file creation events from notify.
 pub(crate) fn realtime_event_stream(_: PathBuf) -> Result<(impl Stream<Item=Event>, impl Watcher)> {
