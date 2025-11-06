@@ -9,7 +9,6 @@ use std::fmt::{Display, Formatter};
 /// From and #[from] and the ? operator.
 pub(crate) type Result<T> = std::result::Result<T, Error>;
 
-
 #[derive(Debug, From)]
 pub(crate) enum Error {
     #[from(notify::Error)]

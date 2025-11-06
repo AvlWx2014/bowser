@@ -17,7 +17,7 @@ impl Sentinel {
             ".bowser.abort" => Some(Sentinel::Abort),
             ".bowser.ready" => Some(Sentinel::Ready(path.clone())),
             ".bowser.complete" => Some(Sentinel::Complete(path.clone())),
-            _ => None
+            _ => None,
         }
     }
 
@@ -33,8 +33,7 @@ impl Sentinel {
 
 impl From<PathBuf> for Sentinel {
     fn from(value: PathBuf) -> Self {
-        Self::try_from_path(&value)
-            .expect("PathBuf not recognized as Bowser sentinel")
+        Self::try_from_path(&value).expect("PathBuf not recognized as Bowser sentinel")
     }
 }
 
@@ -42,7 +41,9 @@ impl Display for Sentinel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
             Sentinel::Started | Sentinel::Abort => format!("{self:?}"),
-            Sentinel::Ready(ref inner) | Sentinel::Complete(ref inner) => format!("{}({})", self.to_str(), inner.display())
+            Sentinel::Ready(ref inner) | Sentinel::Complete(ref inner) => {
+                format!("{}({})", self.to_str(), inner.display())
+            }
         };
         write!(f, "{message}")
     }

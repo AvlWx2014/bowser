@@ -20,8 +20,7 @@ use tokio_stream::Stream;
 use tracing::Level;
 use tracing::{instrument, Instrument};
 
-type PinBoxStream<T> = Pin<Box<dyn Stream<Item=T> + Send>>;
-
+type PinBoxStream<T> = Pin<Box<dyn Stream<Item = T> + Send>>;
 
 #[instrument(
     "watch",
@@ -29,7 +28,12 @@ type PinBoxStream<T> = Pin<Box<dyn Stream<Item=T> + Send>>;
     skip_all,
     fields(root = %root.display(), ?strategy)
 )]
-pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, backends: Vec<Box<dyn BowserBackend>>) -> Result<()> {
+pub(crate) async fn watch(
+    config: AppConfig,
+    root: PathBuf,
+    strategy: Strategy,
+    backends: Vec<Box<dyn BowserBackend>>,
+) -> Result<()> {
     let mut ignore = GitignoreBuilder::new(root.clone());
     // ignore Bowser sentinel files by default
     ignore.add_line(None, ".bowser.*")?;
@@ -42,43 +46,30 @@ pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, 
     let config = Arc::new(config);
 
     tracing::info!(
-            root = %root.display(),
-            ?strategy,
-            backend_count = backends.len(),
-            ignore_pattern_count = config.bowser.ignore.len(),
-            "Executing"
-        );
+        root = %root.display(),
+        ?strategy,
+        backend_count = backends.len(),
+        ignore_pattern_count = config.bowser.ignore.len(),
+        "Executing"
+    );
 
     let (realtime, mut watcher) = realtime_event_stream(root.clone())?;
     let replay = replay_event_stream(root.clone());
 
-    let upstream = stream::select_all(
-        vec![
-            Box::pin(realtime) as PinBoxStream<Event>,
-            Box::pin(replay) as PinBoxStream<Event>
-        ])
-        .filter(|event| {
-            ready(matches!(event.kind, EventKind::Create(CreateKind::File)))
-        })
-        .filter_map(|event| {
-            ready(
-                event.paths
-                    .first()
-                    .and_then(Sentinel::try_from_path)
-            )
-        })
-        .take_while(|sentinel| ready(!matches!(sentinel, Sentinel::Abort)))
-        .distinct();
+    let upstream = stream::select_all(vec![
+        Box::pin(realtime) as PinBoxStream<Event>,
+        Box::pin(replay) as PinBoxStream<Event>,
+    ])
+    .filter(|event| ready(matches!(event.kind, EventKind::Create(CreateKind::File))))
+    .filter_map(|event| ready(event.paths.first().and_then(Sentinel::try_from_path)))
+    .take_while(|sentinel| ready(!matches!(sentinel, Sentinel::Abort)))
+    .distinct();
 
     let downstream: PinBoxStream<Sentinel> = match strategy {
-        Strategy::Sentinel => {
-            Box::pin(
-                upstream.take_while(|sentinel| {
-                    ready(!matches!(sentinel, Sentinel::Complete(..)))
-                })
-            )
-        },
-        Strategy::Count(n) => Box::pin(upstream.take(n))
+        Strategy::Sentinel => Box::pin(
+            upstream.take_while(|sentinel| ready(!matches!(sentinel, Sentinel::Complete(..)))),
+        ),
+        Strategy::Count(n) => Box::pin(upstream.take(n)),
     };
 
     tracing::info!("Event stream composition complete");
@@ -88,15 +79,15 @@ pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, 
     tracing::info!("Filesystem watcher started");
 
     tracing::info!("Starting event streaming");
-    downstream.for_each_concurrent(None, |it| {
-        let backends = backends.clone();
-        let config = config.clone();
-        let ignore = ignore.clone();
+    downstream
+        .for_each_concurrent(None, |it| {
+            let backends = backends.clone();
+            let config = config.clone();
+            let ignore = ignore.clone();
 
-        async move {
-            handle(it, backends, config, ignore).await
-        }
-    }).await;
+            async move { handle(it, backends, config, ignore).await }
+        })
+        .await;
 
     Ok(())
 }
@@ -114,7 +105,7 @@ async fn handle(
 ) {
     let parent = match sentinel {
         Sentinel::Ready(ref path) => path.parent().unwrap().to_path_buf(),
-        _ => panic!("Unexpected Sentinel processed downstream: expected Sentinel::Ready(path)")
+        _ => panic!("Unexpected Sentinel processed downstream: expected Sentinel::Ready(path)"),
     };
 
     // Record the tree field now that we have it
@@ -123,31 +114,29 @@ async fn handle(
 
     let dry_run = config.bowser.dry_run.unwrap_or_default();
     let start = Instant::now();
-    let uploads = backends
-        .iter()
-        .map(|backend| {
-            let parent = parent.clone();
-            let ignore = ignore.clone();
+    let uploads = backends.iter().map(|backend| {
+        let parent = parent.clone();
+        let ignore = ignore.clone();
 
-            async move {
-                let span = tracing::info_span!("backend", %backend);
+        async move {
+            let span = tracing::info_span!("backend", %backend);
 
-                async {
-                    let result = if dry_run {
-                        backend.upload_dry_run(&parent, &ignore).await
-                    } else {
-                        backend.upload(&parent, &ignore).await
-                    };
-                    if let Err(ref e) = result {
-                        tracing::error!(cause = ?e, "Error in backend upload");
-                    };
-                    result
-                }
-                    .instrument(span)
-                    .await
-                    .ok()
+            async {
+                let result = if dry_run {
+                    backend.upload_dry_run(&parent, &ignore).await
+                } else {
+                    backend.upload(&parent, &ignore).await
+                };
+                if let Err(ref e) = result {
+                    tracing::error!(cause = ?e, "Error in backend upload");
+                };
+                result
             }
-        });
+            .instrument(span)
+            .await
+            .ok()
+        }
+    });
 
     join_all(uploads).await;
     tracing::info!(elapsed = ?start.elapsed(), directory = %parent.display(), backend_count = backends.len(), "Upload complete");
@@ -209,7 +198,11 @@ mod tests {
             Ok(())
         }
 
-        async fn upload_dry_run(&self, tree: &PathBuf, _ignore: &Gitignore) -> crate::backends::Result<()> {
+        async fn upload_dry_run(
+            &self,
+            tree: &PathBuf,
+            _ignore: &Gitignore,
+        ) -> crate::backends::Result<()> {
             self.dry_run_uploaded.lock().unwrap().push(tree.clone());
             Ok(())
         }
@@ -242,7 +235,9 @@ mod tests {
         let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
 
         // Create a .bowser.ready file
-        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&data_dir, ".bowser.ready")
+            .await
+            .unwrap();
 
         let config = create_test_config(false);
         let strategy = Strategy::Count(1);
@@ -251,7 +246,9 @@ mod tests {
         sleep(Duration::from_millis(100)).await;
 
         // Run watch with count strategy (should process 1 ready sentinel)
-        watch(config, root.clone(), strategy, backends).await.unwrap();
+        watch(config, root.clone(), strategy, backends)
+            .await
+            .unwrap();
 
         // Verify the backend received the upload call
         let uploaded = mock_backend.get_uploaded();
@@ -273,15 +270,21 @@ mod tests {
         let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
 
         // Create ready sentinels
-        create_sentinel_file(&data_dir1, ".bowser.ready").await.unwrap();
-        create_sentinel_file(&data_dir2, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&data_dir1, ".bowser.ready")
+            .await
+            .unwrap();
+        create_sentinel_file(&data_dir2, ".bowser.ready")
+            .await
+            .unwrap();
 
         let config = create_test_config(false);
         let strategy = Strategy::Count(2);
 
         sleep(Duration::from_millis(100)).await;
 
-        watch(config, root.clone(), strategy, backends).await.unwrap();
+        watch(config, root.clone(), strategy, backends)
+            .await
+            .unwrap();
 
         let uploaded = mock_backend.get_uploaded();
         assert_eq!(uploaded.len(), 2);
@@ -301,15 +304,21 @@ mod tests {
         let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
 
         // Create ready sentinel then complete sentinel
-        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
-        create_sentinel_file(&root, ".bowser.complete").await.unwrap();
+        create_sentinel_file(&data_dir, ".bowser.ready")
+            .await
+            .unwrap();
+        create_sentinel_file(&root, ".bowser.complete")
+            .await
+            .unwrap();
 
         let config = create_test_config(false);
         let strategy = Strategy::Sentinel;
 
         sleep(Duration::from_millis(100)).await;
 
-        watch(config, root.clone(), strategy, backends).await.unwrap();
+        watch(config, root.clone(), strategy, backends)
+            .await
+            .unwrap();
 
         // Should have processed the ready, but stopped before any future events
         let uploaded = mock_backend.get_uploaded();
@@ -327,14 +336,18 @@ mod tests {
         let mock_backend = MockBackend::new(root.clone());
         let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
 
-        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&data_dir, ".bowser.ready")
+            .await
+            .unwrap();
 
         let config = create_test_config(true); // dry_run = true
         let strategy = Strategy::Count(1);
 
         sleep(Duration::from_millis(100)).await;
 
-        watch(config, root.clone(), strategy, backends).await.unwrap();
+        watch(config, root.clone(), strategy, backends)
+            .await
+            .unwrap();
 
         // Should call dry_run, not regular upload
         let uploaded = mock_backend.get_uploaded();
@@ -359,14 +372,18 @@ mod tests {
             Box::new(mock_backend2.clone()),
         ];
 
-        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&data_dir, ".bowser.ready")
+            .await
+            .unwrap();
 
         let config = create_test_config(false);
         let strategy = Strategy::Count(1);
 
         sleep(Duration::from_millis(100)).await;
 
-        watch(config, root.clone(), strategy, backends).await.unwrap();
+        watch(config, root.clone(), strategy, backends)
+            .await
+            .unwrap();
 
         // Both backends should receive the upload
         let uploaded1 = mock_backend1.get_uploaded();
@@ -389,18 +406,24 @@ mod tests {
         let backends: Vec<Box<dyn BowserBackend>> = vec![Box::new(mock_backend.clone())];
 
         // Create regular files (should be ignored)
-        create_sentinel_file(&data_dir, "regular.txt").await.unwrap();
+        create_sentinel_file(&data_dir, "regular.txt")
+            .await
+            .unwrap();
         create_sentinel_file(&data_dir, "data.json").await.unwrap();
 
         // Create one ready sentinel
-        create_sentinel_file(&data_dir, ".bowser.ready").await.unwrap();
+        create_sentinel_file(&data_dir, ".bowser.ready")
+            .await
+            .unwrap();
 
         let config = create_test_config(false);
         let strategy = Strategy::Count(1);
 
         sleep(Duration::from_millis(100)).await;
 
-        watch(config, root.clone(), strategy, backends).await.unwrap();
+        watch(config, root.clone(), strategy, backends)
+            .await
+            .unwrap();
 
         // Should only process the sentinel, not regular files
         let uploaded = mock_backend.get_uploaded();

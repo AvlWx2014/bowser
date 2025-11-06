@@ -11,12 +11,14 @@ pub(crate) async fn sha256(input: &PathBuf) -> std::io::Result<String> {
     let mut buffer = vec![0; 8192];
 
     while let Ok(n) = file.read(&mut buffer).await {
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         hash_slinging_slasher.update(&buffer[..n]);
     }
 
     let digest = hash_slinging_slasher.finalize();
-    Ok(general_purpose::STANDARD.encode(&digest))
+    Ok(general_purpose::STANDARD.encode(digest))
 }
 
 /// Tests authored by Claude Sonnet 4.5.
