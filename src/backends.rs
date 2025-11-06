@@ -4,4 +4,3 @@ pub(crate) mod error;
 
 pub(crate) use base::BowserBackend;
 pub(crate) use error::Result;
-

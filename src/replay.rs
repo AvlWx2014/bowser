@@ -18,7 +18,7 @@ use walkdir::WalkDir;
 /// of watch termination.
 pub(crate) fn replay_event_stream(root: PathBuf) -> impl Stream<Item = Event> {
     tracing::debug!(root = %root.display(), "Building replay event stream");
-    
+
     stream! {
         if !root.is_dir() {
             return;

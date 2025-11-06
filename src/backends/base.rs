@@ -10,4 +10,3 @@ pub(crate) trait BowserBackend: Send + Sync + Display {
     async fn upload(&self, tree: &PathBuf, ignore: &Gitignore) -> Result<()>;
     async fn upload_dry_run(&self, tree: &PathBuf, ignore: &Gitignore) -> Result<()>;
 }
-

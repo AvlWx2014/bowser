@@ -16,14 +16,18 @@ pub(crate) enum Error {
     BasicStringOperationFailed,
 
     // -- S3
-    S3ByteStreamCreationFailed { from: PathBuf },
+    S3ByteStreamCreationFailed {
+        from: PathBuf,
+    },
     #[from(SdkError<DeleteObjectError, HttpResponse>)]
     S3DeleteObjectFailed,
     #[from(SdkError<ListObjectsV2Error, HttpResponse>)]
     S3ListObjectsFailed,
     #[from(SdkError<PutObjectError, HttpResponse>)]
     S3PutObjectFailed,
-    MissingChecksum { key: String },
+    MissingChecksum {
+        key: String,
+    },
     ChecksumMismatch,
 
     // -- WalkDir

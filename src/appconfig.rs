@@ -3,10 +3,9 @@ use sec::Secret;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct AppConfig {
-    pub(crate) bowser: BowserConfig
+    pub(crate) bowser: BowserConfig,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,15 +19,15 @@ pub(crate) struct BowserConfig {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag="kind")]
+#[serde(tag = "kind")]
 pub(crate) enum BackendConfig {
-    #[serde(rename="AWS-S3")]
+    #[serde(rename = "AWS-S3")]
     AwsS3 {
         region: String,
         access_key_id: Secret<String>,
         secret_access_key: Secret<String>,
-        buckets: Vec<Bucket>
-    }
+        buckets: Vec<Bucket>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,7 +40,7 @@ pub(crate) struct Bucket {
     /// directly to the top-level of the given bucket name.
     ///
     /// If prefix is not empty, then content will be sync'd under the provided prefix.
-    pub(crate) prefix: Option<String>
+    pub(crate) prefix: Option<String>,
 }
 
 impl Bucket {
@@ -58,7 +57,8 @@ impl Bucket {
             .join(prefix.into())
             .into_os_string()
             .into_string()?;
-        let result = as_path.strip_prefix("/")
+        let result = as_path
+            .strip_prefix("/")
             .map(String::from)
             .unwrap_or(as_path);
         Ok(result)

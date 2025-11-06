@@ -5,7 +5,6 @@ use crate::backends::base::BowserBackend;
 use crate::backends::Result as BackendResult;
 use crate::checksum;
 use async_trait::async_trait;
-use aws_config;
 use aws_config::{Region, SdkConfig};
 use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_credential_types::Credentials;
@@ -77,15 +76,15 @@ impl TryFrom<&BackendConfig> for AwsS3Config {
     }
 }
 
-impl Into<SdkConfig> for AwsS3Config {
-    fn into(self) -> SdkConfig {
+impl From<AwsS3Config> for SdkConfig {
+    fn from(value: AwsS3Config) -> Self {
         let credentials = Credentials::from_keys(
-            self.access_key_id.reveal().to_string(),
-            self.secret_access_key.reveal().to_string(),
+            value.access_key_id.reveal().to_string(),
+            value.secret_access_key.reveal().to_string(),
             None,
         );
-        SdkConfig::builder()
-            .region(Region::new(self.region))
+        Self::builder()
+            .region(Region::new(value.region))
             .credentials_provider(SharedCredentialsProvider::new(credentials))
             .build()
     }
@@ -129,7 +128,11 @@ impl AwsS3Backend {
     ///
     /// Any nodes that match a pattern in `ignore` are omitted from the resulting
     /// index.
-    async fn index_source(&self, tree: &PathBuf, ignore: &Gitignore) -> Result<HashMap<BucketKey, PathBuf>> {
+    async fn index_source(
+        &self,
+        tree: &PathBuf,
+        ignore: &Gitignore,
+    ) -> Result<HashMap<BucketKey, PathBuf>> {
         tracing::debug!(tree = %tree.display(), "Indexing source tree");
         let start = Instant::now();
         let entries: Vec<DirEntry> = WalkDir::new(tree)
@@ -147,10 +150,7 @@ impl AwsS3Backend {
                     Match::Ignore(_) => None,
                 }
             })
-            .filter_map(|entry| {
-                self.path_to_key(entry.clone())
-                    .map(|it| (it, entry))
-            })
+            .filter_map(|entry| self.path_to_key(entry.clone()).map(|it| (it, entry)))
             .collect::<HashMap<_, _>>();
 
         tracing::debug!(size = keys.len(), elapsed = ?start.elapsed(), "Indexing source tree complete");
@@ -167,10 +167,9 @@ impl AwsS3Backend {
         let start = Instant::now();
 
         let client = &self.client;
-        let destination = bucket.join_prefix(&prefix)
-            .map_err(|_| -> Error {
-                format!("Failed to join prefix {:?} + {prefix}", bucket.name).into()
-            })?;
+        let destination = bucket.join_prefix(&prefix).map_err(|_| -> Error {
+            format!("Failed to join prefix {:?} + {prefix}", bucket.name).into()
+        })?;
 
         let mut objects = client
             .list_objects_v2()
@@ -215,25 +214,32 @@ impl AwsS3Backend {
         level = Level::DEBUG,
         skip(self, source, bucket, ignore),
     )]
-    async fn resolve(&self, source: &PathBuf, bucket: &Bucket, ignore: &Gitignore) -> Result<Vec<Op>> {
+    async fn resolve(
+        &self,
+        source: &PathBuf,
+        bucket: &Bucket,
+        ignore: &Gitignore,
+    ) -> Result<Vec<Op>> {
         tracing::debug!("Resolving sync operations to perform");
         let start = Instant::now();
         let mut ops = Vec::<_>::new();
 
-        let prefix = self.path_to_key(source.clone())
-            .ok_or::<Error>(
-                format!(
-                    "Could not resolve sync operations to be done: \
+        let prefix = self.path_to_key(source.clone()).ok_or::<Error>(
+            format!(
+                "Could not resolve sync operations to be done: \
                     failed to translate path {source:?} to a valid S3 key"
-                ).into()
-            )?;
+            )
+            .into(),
+        )?;
 
-        let source_index: HashMap<BucketKey, PathBuf> = self.index_source(source, ignore)
+        let source_index: HashMap<BucketKey, PathBuf> = self
+            .index_source(source, ignore)
             .await
             .unwrap_or_default()
             .iter()
             .map(|(key, path)| {
-                bucket.join_prefix(key)
+                bucket
+                    .join_prefix(key)
                     .map(|it| (it, path.clone()))
                     .map_err(|_| -> Error {
                         format!("Failed to join prefix {:?} + {prefix}", bucket.name).into()
@@ -250,23 +256,28 @@ impl AwsS3Backend {
 
         let destination_index = destination_index.iter().collect::<HashSet<_>>();
 
-        source_keys.difference(&destination_index)
+        source_keys.difference(&destination_index).for_each(|&it| {
+            let source = source_index.get(it).unwrap();
+            let source = self.watch_root().join(source);
+            ops.push(Op::Create {
+                key: it.clone(),
+                source,
+            })
+        });
+
+        source_keys
+            .intersection(&destination_index)
             .for_each(|&it| {
                 let source = source_index.get(it).unwrap();
                 let source = self.watch_root().join(source);
-                ops.push(Op::Create { key: it.clone(), source })
+                ops.push(Op::Update {
+                    key: it.clone(),
+                    source,
+                })
             });
 
-        source_keys.intersection(&destination_index)
-            .for_each(|&it| {
-                let source = source_index.get(it).unwrap();
-                let source = self.watch_root().join(source);
-                ops.push(
-                    Op::Update { key: it.clone(), source }
-                )
-            });
-
-        destination_index.difference(&source_keys)
+        destination_index
+            .difference(&source_keys)
             .for_each(|&it| ops.push(Op::Delete { key: it.clone() }));
 
         tracing::debug!(elapsed = ?start.elapsed(), "Complete");
@@ -283,16 +294,26 @@ impl AwsS3Backend {
         let todos = self.resolve(source, bucket, ignore).await?;
         tracing::info!(
             op_count = todos.len(),
-            creates = todos.iter().filter(|op| matches!(op, Op::Create{..})).count(),
-            updates = todos.iter().filter(|op| matches!(op, Op::Update{..})).count(),
-            deletes = todos.iter().filter(|op| matches!(op, Op::Delete{..})).count(),
+            creates = todos
+                .iter()
+                .filter(|op| matches!(op, Op::Create { .. }))
+                .count(),
+            updates = todos
+                .iter()
+                .filter(|op| matches!(op, Op::Update { .. }))
+                .count(),
+            deletes = todos
+                .iter()
+                .filter(|op| matches!(op, Op::Delete { .. }))
+                .count(),
             "Sync operations resolved"
         );
         stream::iter(todos)
             .map(Ok)
-            .try_for_each_concurrent(Some(10), |it| async move {
-                self.dispatch(it, bucket).await
-            })
+            .try_for_each_concurrent(
+                Some(10),
+                |it| async move { self.dispatch(it, bucket).await },
+            )
             .await
     }
 
@@ -302,19 +323,37 @@ impl AwsS3Backend {
         skip(self, source, ignore),
         fields(bucket = %bucket.name),
     )]
-    async fn sync_dry_run(&self, source: &PathBuf, bucket: &Bucket, ignore: &Gitignore) -> Result<()> {
+    async fn sync_dry_run(
+        &self,
+        source: &PathBuf,
+        bucket: &Bucket,
+        ignore: &Gitignore,
+    ) -> Result<()> {
         let todos = self.resolve(source, bucket, ignore).await?;
         tracing::info!(
             op_count = todos.len(),
-            creates = todos.iter().filter(|op| matches!(op, Op::Create{..})).count(),
-            updates = todos.iter().filter(|op| matches!(op, Op::Update{..})).count(),
-            deletes = todos.iter().filter(|op| matches!(op, Op::Delete{..})).count(),
+            creates = todos
+                .iter()
+                .filter(|op| matches!(op, Op::Create { .. }))
+                .count(),
+            updates = todos
+                .iter()
+                .filter(|op| matches!(op, Op::Update { .. }))
+                .count(),
+            deletes = todos
+                .iter()
+                .filter(|op| matches!(op, Op::Delete { .. }))
+                .count(),
             "Sync operations resolved"
         );
         for todo in todos.iter() {
             match todo {
-                Op::Create { key, source } => tracing::info!(%key, source = %source.display(), "Would Create"),
-                Op::Update { key, source } => tracing::info!(%key, source = %source.display(), "Would Update"),
+                Op::Create { key, source } => {
+                    tracing::info!(%key, source = %source.display(), "Would Create")
+                }
+                Op::Update { key, source } => {
+                    tracing::info!(%key, source = %source.display(), "Would Update")
+                }
                 Op::Delete { key } => tracing::info!(?key, "Would Delete"),
             }
         }
@@ -354,11 +393,15 @@ impl AwsS3Backend {
     async fn put_object(&self, bucket: &Bucket, key: String, source: PathBuf) -> Result<()> {
         let client = self.client.clone();
         let checksum = checksum::sha256(&source).await?;
-        let body = ByteStream::from_path(&source)
-            .await
-            .map_err(|_| S3ByteStreamCreationFailed { from: source.clone() })?;
+        let body =
+            ByteStream::from_path(&source)
+                .await
+                .map_err(|_| S3ByteStreamCreationFailed {
+                    from: source.clone(),
+                })?;
 
-        let response = client.put_object()
+        let response = client
+            .put_object()
             .bucket(bucket.name.clone())
             .key(&key)
             .body(body)
@@ -366,10 +409,12 @@ impl AwsS3Backend {
             .send()
             .await?;
 
-        let actual_checksum = response.checksum_sha256.ok_or(MissingChecksum { key: key.clone() })?;
+        let actual_checksum = response
+            .checksum_sha256
+            .ok_or(MissingChecksum { key: key.clone() })?;
         tracing::info!(expected = %checksum, "Verifying checksum");
         if actual_checksum != checksum {
-            return Err(ChecksumMismatch)
+            return Err(ChecksumMismatch);
         }
         tracing::info!("Checksum verified");
         tracing::info!(key = %key, "Object uploaded successfully");
@@ -384,7 +429,8 @@ impl AwsS3Backend {
     )]
     async fn delete_object(&self, bucket: &Bucket, key: String) -> Result<()> {
         let client = self.client.clone();
-        client.delete_object()
+        client
+            .delete_object()
             .bucket(bucket.name.clone())
             .key(key.clone())
             .send()
