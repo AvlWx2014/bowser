@@ -1,43 +1,50 @@
 # Bowser the Warehouser
 
-Bowser is a sidekick application that runs as a sidecar container in your Pods and warehouses
-your data.
+Bowser is a sidekick application that runs as a sidecar to your Kubernetes applications and warehouses your data.
 
 ## Usage
 
 #### bowser
 
 ```text
-Usage: bowser [OPTIONS] COMMAND [ARGS]...
+Warehouses your data so you don't have to.
 
-  Warehouses your things for you, whether you like it or not.
-
-Options:
-  --debug  Enable debug logging. Warning: this may mean a lot of log output.
-  --help   Show this message and exit.
+Usage: bowser [OPTIONS] <COMMAND>
 
 Commands:
-  watch  Watch DIR (recursively) and upload trees marked as ready.
+  watch  Watch DIR recursively and upload trees marked as ready.
+         Uses the sentinel file .bowser.ready to mark a tree as ready for upload.
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+      --dry-run <DRY_RUN>
+          [possible values: true, false]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 #### bowser watch
 
 ```text
-Usage: bowser watch [OPTIONS] DIR
+Watch DIR recursively and upload trees marked as ready.
+Uses the sentinel file .bowser.ready to mark a tree as ready for upload.
 
-  Watch DIR (recursively) and upload trees marked as ready.
+Usage: bowser watch [OPTIONS] <--sentinel|--count <COUNT>> <DIR>
 
-  Use the sentinel file .bowser.ready to mark a tree as ready for upload.
+Arguments:
+  <DIR>  
 
 Options:
-  --dry-run            If present, AWS calls are mocked using moto and no real
-                       upload is done.
-  --strategy STRATEGY  Controls what type of event signals the watch command
-                       to stop.  [default: sentinel]
-  -n, --count INTEGER  If the 'count' watch strategy is chosen, this specifies
-                       how many completion events to wait for before stopping.
-                       Must be >= 1.
-  --help               Show this message and exit.
+      --dry-run <DRY_RUN>  [possible values: true, false]
+      --sentinel           Watch until a .bowser.complete sentinel file appears in DIR. 
+                           Mutually exclusive with --count.
+      --count <COUNT>      Watch until COUNT .bowser.ready sentinel files have appeared.
+                           Mutually exclusive with --sentinel.
+  -h, --help               Print help
 ```
 
 ## Configuration
@@ -48,21 +55,21 @@ of precedence:
 1. `/etc/bowser.toml` (lowest precedence)
 2. `$XDG_CONFIG_HOME/bowser/bowser.toml` or `$HOME/.config/bowser/bowser.toml` (highest precedence)
     * Note: `$HOME/.config/bowser/bowser.toml` is used as a fallback in the event
-      `$XDG_CONFIG_HOME` is not defined. If both are defined, the `$XDG_CONFIG_HOME` verion is
-      loaded, and the `$HOME` version is not.
-
-If more than one of these configuration files exists, configuration is merged in order of
-precedence.
+      `$XDG_CONFIG_HOME` is not defined. If both are defined, the `$XDG_CONFIG_HOME` path is preferred.
 
 Here is an example configuration file:
 
 ```toml
 [bowser]
 dry_run = true
+# .gitignore style patterns to be ignored
+ignore = [
+    "*.metadata"
+]
 
 [[bowser.backends]]
 kind = "AWS-S3"
-region = "eu-west-1"
+region = "us-east-1"
 access_key_id = "access key"
 secret_access_key = "secret squirrel stuff"
 
@@ -78,6 +85,24 @@ precedence as command line flags:
 |---------------------|-----------------------------------|------------------|
 | `dry_run`           | `--dry-run`                       | `watch`          |
 
+## Ignoring Files
+
+Bowser's configuration schema provides `bowser.ignore` to specify patterns which represent files 
+that should be ignored during upload.
+
+By default, all Bowser sentinel files like `.bowser.ready`, `.bowser.complete`, etc. are ignored. 
+Additional ignores can be configured like so:
+
+```toml
+[bowser]
+ignore = [
+    "*.tmp"
+]
+```
+
+`[bowser.ignore]` supports gitignore-style patterns courtesy of the [`ignore`](https://docs.rs/ignore/latest/ignore/)
+crate.
+
 ## Watch Strategy
 
 Bowser supports multiple watch strategies for the `watch` subcommand.
@@ -86,11 +111,11 @@ Bowser supports multiple watch strategies for the `watch` subcommand.
 
 Stop once a sentinel file called `.bowser.complete` appears in the watch directory.
 
-This is the default watch strategy. If you would like to enable it explicitly, use `--strategy
-sentinel` like:
+This is the default watch strategy. If you would like to enable it explicitly, use the `--sentinel` 
+flag like:
 
 ```shell
-bowser watch --strategy sentinel /some/dir
+bowser watch --sentinel /some/dir
 ```
 
 ### The "Count" Watch Strategy
@@ -98,15 +123,13 @@ bowser watch --strategy sentinel /some/dir
 Stop once the specified number of trees have signaled they are upload _ready_. If the upload
 operation for a tree fails it still counts towards the number of upload ready trees.
 
-To enable this strategy pass `--strategy count` with the `-n/--count` option like:
+To enable this strategy pass `--count N` like:
 
 ```shell
-bowser watch --strategy count -n 5 /some/dir
+bowser watch --count 5 /some/dir
 ```
 
-If `-n/--count` is used with `--strategy sentinel` it is ignored.
-
-> Note: `count` must be at least 1.
+> Note: `--count` must have a value of at least 1.
 
 ## Bowser Backends
 
@@ -138,7 +161,7 @@ Here is an example backend configuration:
 ```toml
 [[bowser.backends]]
 kind = "AWS-S3"
-region = "eu-west-1"
+region = "us-east-1"
 access_key_id = "access key"
 secret_access_key = "secret squirrel stuff"
 
@@ -148,17 +171,15 @@ prefix = "some/root/prefix"
 
 [[bowser.backends.buckets]]
 name = "staging-bucket"
-prefix = ""
 
 [[bowser.backends]]
 kind = "AWS-S3"
-region = "us-east-1"
-access_key_id = "access key"
-secret_access_key = "secret squirrel stuff"
+region = "eu-west-1"
+access_key_id = "access key 2"
+secret_access_key = "secret squirrel stuff 2"
 
 [[bowser.backends.buckets]]
 name = "staging-bucket"
-prefix = ""
 ```
 
 The `region`, `access_key_id`, and `secret_access_key` fields are all required in order for the
@@ -169,15 +190,15 @@ Multiple `AWS-S3` backends must be configured if uploading to multiple regions i
 For each bucket the bucket `name` field needs to match the name of the bucket in the configured
 region.
 
-For each bucket the bucket `prefix` field is added as an additional prefix to the resulting
-object key before upload. In other words, you can use `prefix` to specify that content should go
-under a certain prefix in the target bucket.
+For each bucket the bucket `prefix` field is added as an additional prefix prepended to each object key
+before upload. In other words, you can use `prefix` to specify that content should go under a certain 
+prefix in the target bucket.
 
 #### Implementation Details
 
-* The key for any object that is uploaded includes any ancestor in the path from the watch
-  directory `DIR` specified on the command-line to that object, but not `DIR` itself. For
-  example, given a watch tree structure like this:
+* The key for any object that is uploaded includes any ancestor in the path from the watch directory `DIR` 
+  specified on the command-line to that object, but not `DIR` itself. In other words: it is the path to the 
+  object relative to `DIR`. For example, given a watch tree structure like this:
 
 ```text
 /tmp/transient-fortitude/
@@ -199,13 +220,7 @@ under a certain prefix in the target bucket.
     └── content.txt
 ```
 
-then the resulting key for `test2/subtree/content.yml` will be `test2/subtree/content.yml` 
-assuming no `key` is specified in your backend bucket configuration. If your bucket definition 
-provides `prefix = "some/root/prefix` then the resulting prefix for `test2/subtree/content.yml` will be 
-`some/root/prefix/test2/subtree/content.yml`.
-
-* The AWS S3 backend skips uploading any Bowser sentinel files like `.bowser.ready` or
-  `.bowser.complete`.
-* The AWS S3 backend skips any files with the suffix `.metadata`. It is assumed that `.metadata`
-  files are JSON-encoded files with a flat structure of `key: value` pairs of strings. These are
-  then translated in to object tags in S3 and as such are subject to the same limitations.
+the resulting key for `/tmp/transient-fortitude/test2/subtree/content.yml` would be `test2/subtree/content.yml` 
+assuming no additional `prefix` is specified in your backend bucket configuration. If your bucket definition 
+provides `prefix = "some/root/prefix"` then the resulting prefix for `/tmp/transient-fortitude/test2/subtree/content.yml` 
+would be `some/root/prefix/test2/subtree/content.yml`.

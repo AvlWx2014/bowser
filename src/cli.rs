@@ -7,7 +7,7 @@ pub(crate) enum Commands {
     #[command(
         name = "watch",
         about = r#"Watch DIR recursively and upload trees marked as ready.
-        Uses the sentinel file .bowser.ready to mark a tree as ready for upload."#
+Uses the sentinel file .bowser.ready to mark a tree as ready for upload."#
     )]
     Watch {
         #[command(flatten)]
@@ -22,12 +22,14 @@ pub(crate) enum Commands {
 pub struct StrategyArgs {
     #[arg(
         long,
-        help = "Watch until a .bowser.complete sentinel file appears in DIR."
+        help = r#"Watch until a .bowser.complete sentinel file appears in DIR. 
+Mutually exclusive with --count."#
     )]
     pub sentinel: bool,
     #[arg(
         long,
-        help = "Watch until COUNT .bowser.ready sentinel files have appeared."
+        help = r#"Watch until COUNT .bowser.ready sentinel files have appeared.
+Mutually exclusive with --sentinel."#
     )]
     pub count: Option<usize>,
 }
