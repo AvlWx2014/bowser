@@ -17,10 +17,13 @@ use walkdir::WalkDir;
 /// sentinel files in the root (like .bowser.complete), allowing proper sequencing
 /// of watch termination.
 pub(crate) fn replay_event_stream(root: PathBuf) -> impl Stream<Item = Event> {
+    tracing::debug!(root = %root.display(), "Building replay event stream");
+    
     stream! {
         if !root.is_dir() {
             return;
         }
+
         // async events resolution authored by Claude Sonnet 4.5
         // to account for a bug found in the original implementation during testing
         let events = spawn_blocking(move || {
@@ -49,8 +52,13 @@ pub(crate) fn replay_event_stream(root: PathBuf) -> impl Stream<Item = Event> {
         .await
         .unwrap_or_default();
 
+        tracing::debug!(event_count = events.len(), "Replay events ready");
+
         for event in events {
+            tracing::trace!(?event, "Emitting event");
             yield event
         }
+
+        tracing::debug!("Replay events complete");
     }
 }
