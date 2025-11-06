@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub(crate) enum Strategy {
     /// Watch until a .bowser.complete sentinel appears in the watch root.
     Sentinel,

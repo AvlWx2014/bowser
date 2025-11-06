@@ -3,6 +3,7 @@ use crate::appconfig::{BackendConfig, Bucket};
 use crate::backends::aws::Error::{ChecksumMismatch, MissingChecksum, S3ByteStreamCreationFailed};
 use crate::backends::base::BowserBackend;
 use crate::backends::Result as BackendResult;
+use crate::checksum;
 use async_trait::async_trait;
 use aws_config;
 use aws_config::{Region, SdkConfig};
@@ -10,17 +11,20 @@ use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_credential_types::Credentials;
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::types::ChecksumAlgorithm;
 use derive_more::From;
 use futures::{stream, StreamExt, TryStreamExt};
+use ignore::gitignore::Gitignore;
+use ignore::Match;
 use pathdiff::diff_paths;
 use sec::Secret;
 use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
-use aws_sdk_s3::types::ChecksumAlgorithm;
-use ignore::gitignore::Gitignore;
-use ignore::Match;
+use tokio::time::Instant;
+use tracing::instrument;
+use tracing::Level;
 use walkdir::{DirEntry, WalkDir};
-use crate::checksum;
 
 type BucketPrefix = String;
 type BucketKey = String;
@@ -87,11 +91,17 @@ impl Into<SdkConfig> for AwsS3Config {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct AwsS3Backend {
     config: AwsS3Config,
     client: s3::Client,
     pub(crate) root: PathBuf,
+}
+
+impl Display for AwsS3Backend {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AwsS3Backend({})", self.config.region)
+    }
 }
 
 #[derive(Debug)]
@@ -120,6 +130,8 @@ impl AwsS3Backend {
     /// Any nodes that match a pattern in `ignore` are omitted from the resulting
     /// index.
     async fn index_source(&self, tree: &PathBuf, ignore: &Gitignore) -> Result<HashMap<BucketKey, PathBuf>> {
+        tracing::debug!(tree = %tree.display(), "Indexing source tree");
+        let start = Instant::now();
         let entries: Vec<DirEntry> = WalkDir::new(tree)
             .sort_by_file_name()
             .into_iter()
@@ -141,6 +153,7 @@ impl AwsS3Backend {
             })
             .collect::<HashMap<_, _>>();
 
+        tracing::debug!(size = keys.len(), elapsed = ?start.elapsed(), "Indexing source tree complete");
         Ok(keys)
     }
 
@@ -150,7 +163,9 @@ impl AwsS3Backend {
         bucket: &Bucket,
         prefix: BucketPrefix,
     ) -> Result<HashSet<BucketKey>> {
-        println!("Listing {prefix} in {bucket:?}");
+        tracing::debug!(bucket=%bucket.name, %prefix, "Indexing destination");
+        let start = Instant::now();
+
         let client = &self.client;
         let destination = bucket.join_prefix(&prefix)
             .map_err(|_| -> Error {
@@ -172,11 +187,11 @@ impl AwsS3Backend {
                 .iter()
                 .filter_map(|obj| obj.key())
                 .for_each(|it| {
-                    println!("Object key: {it:?}");
                     let _ = keys.insert(String::from(it));
                 })
         }
 
+        tracing::debug!(size = keys.len(), elapsed = ?start.elapsed(), "Indexing destination complete");
         Ok(keys)
     }
 
@@ -195,7 +210,14 @@ impl AwsS3Backend {
     /// Resolve a set of Ops to perform in `bucket` given the tree under `source`.
     ///
     /// Any files in `source` that match a pattern in `ignore` are ignored.
+    #[instrument(
+        "aws.resolve",
+        level = Level::DEBUG,
+        skip(self, source, bucket, ignore),
+    )]
     async fn resolve(&self, source: &PathBuf, bucket: &Bucket, ignore: &Gitignore) -> Result<Vec<Op>> {
+        tracing::debug!("Resolving sync operations to perform");
+        let start = Instant::now();
         let mut ops = Vec::<_>::new();
 
         let prefix = self.path_to_key(source.clone())
@@ -247,35 +269,66 @@ impl AwsS3Backend {
         destination_index.difference(&source_keys)
             .for_each(|&it| ops.push(Op::Delete { key: it.clone() }));
 
+        tracing::debug!(elapsed = ?start.elapsed(), "Complete");
         Ok(ops)
     }
 
+    #[instrument(
+        "aws.sync",
+        level = Level::INFO,
+        skip(self, source, ignore),
+        fields(bucket = %bucket.name),
+    )]
     async fn sync(&self, source: &PathBuf, bucket: &Bucket, ignore: &Gitignore) -> Result<()> {
         let todos = self.resolve(source, bucket, ignore).await?;
+        tracing::info!(
+            op_count = todos.len(),
+            creates = todos.iter().filter(|op| matches!(op, Op::Create{..})).count(),
+            updates = todos.iter().filter(|op| matches!(op, Op::Update{..})).count(),
+            deletes = todos.iter().filter(|op| matches!(op, Op::Delete{..})).count(),
+            "Sync operations resolved"
+        );
         stream::iter(todos)
             .map(Ok)
             .try_for_each_concurrent(Some(10), |it| async move {
                 self.dispatch(it, bucket).await
             })
-            .await?;
-        Ok(())
+            .await
     }
 
+    #[instrument(
+        "aws.sync_dry_run",
+        level = Level::INFO,
+        skip(self, source, ignore),
+        fields(bucket = %bucket.name),
+    )]
     async fn sync_dry_run(&self, source: &PathBuf, bucket: &Bucket, ignore: &Gitignore) -> Result<()> {
         let todos = self.resolve(source, bucket, ignore).await?;
-
-        for todo in todos {
+        tracing::info!(
+            op_count = todos.len(),
+            creates = todos.iter().filter(|op| matches!(op, Op::Create{..})).count(),
+            updates = todos.iter().filter(|op| matches!(op, Op::Update{..})).count(),
+            deletes = todos.iter().filter(|op| matches!(op, Op::Delete{..})).count(),
+            "Sync operations resolved"
+        );
+        for todo in todos.iter() {
             match todo {
-                Op::Create { key, source } => println!("Would Create {key} from {source:?}"),
-                Op::Update { key, source } => println!("Would Update {key} with {source:?}"),
-                Op::Delete { key } => println!("Would Delete {key}"),
+                Op::Create { key, source } => tracing::info!(%key, source = %source.display(), "Would Create"),
+                Op::Update { key, source } => tracing::info!(%key, source = %source.display(), "Would Update"),
+                Op::Delete { key } => tracing::info!(?key, "Would Delete"),
             }
         }
+        tracing::info!(op_count = todos.len(), "Sync dry run complete");
         Ok(())
     }
 
+    #[instrument(
+        "aws.dispatch",
+        level = Level::INFO,
+        skip(self, bucket),
+        fields(?op),
+    )]
     async fn dispatch(&self, op: Op, bucket: &Bucket) -> Result<()> {
-        println!("Dispatching op {op:?} to {bucket:?}");
         match op {
             Op::Create { key, source } => self.create_object(bucket, key, source).await?,
             Op::Update { key, source } => self.update_object(bucket, key, source).await?,
@@ -285,15 +338,19 @@ impl AwsS3Backend {
     }
 
     async fn create_object(&self, bucket: &Bucket, key: String, source: PathBuf) -> Result<()> {
-        println!("Creating object {}/{key} from {source:?}", bucket.name);
         self.put_object(bucket, key, source).await
     }
 
     async fn update_object(&self, bucket: &Bucket, key: String, source: PathBuf) -> Result<()> {
-        println!("Updating object {}/{key} with {source:?}", bucket.name);
         self.put_object(bucket, key, source).await
     }
 
+    #[instrument(
+        "aws.put_object",
+        level = Level::INFO,
+        skip(self, bucket),
+        fields(%key, source = %source.display()),
+    )]
     async fn put_object(&self, bucket: &Bucket, key: String, source: PathBuf) -> Result<()> {
         let client = self.client.clone();
         let checksum = checksum::sha256(&source).await?;
@@ -309,22 +366,31 @@ impl AwsS3Backend {
             .send()
             .await?;
 
-        let actual_checksum = response.checksum_sha256.ok_or(MissingChecksum { key })?;
+        let actual_checksum = response.checksum_sha256.ok_or(MissingChecksum { key: key.clone() })?;
+        tracing::info!(expected = %checksum, "Verifying checksum");
         if actual_checksum != checksum {
             return Err(ChecksumMismatch)
         }
+        tracing::info!("Checksum verified");
+        tracing::info!(key = %key, "Object uploaded successfully");
         Ok(())
     }
 
+    #[instrument(
+        "aws.delete_object",
+        level = Level::INFO,
+        skip(self, bucket),
+        fields(%key),
+    )]
     async fn delete_object(&self, bucket: &Bucket, key: String) -> Result<()> {
-        println!("Deleting object {}/{key}", bucket.name);
         let client = self.client.clone();
         client.delete_object()
             .bucket(bucket.name.clone())
-            .key(key)
+            .key(key.clone())
             .send()
             .await?;
-        Ok(())
+        tracing::info!(key = %key, "Object deleted successfully");
+        Ok::<(), Error>(())
     }
 }
 

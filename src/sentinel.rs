@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -19,12 +20,31 @@ impl Sentinel {
             _ => None
         }
     }
+
+    pub(crate) fn to_str(&self) -> &'static str {
+        match self {
+            Sentinel::Started => "Started",
+            Sentinel::Abort => "Abort",
+            Sentinel::Ready(..) => "Ready",
+            Sentinel::Complete(..) => "Complete",
+        }
+    }
 }
 
 impl From<PathBuf> for Sentinel {
     fn from(value: PathBuf) -> Self {
         Self::try_from_path(&value)
             .expect("PathBuf not recognized as Bowser sentinel")
+    }
+}
+
+impl Display for Sentinel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Sentinel::Started | Sentinel::Abort => format!("{self:?}"),
+            Sentinel::Ready(ref inner) | Sentinel::Complete(ref inner) => format!("{}({})", self.to_str(), inner.display())
+        };
+        write!(f, "{message}")
     }
 }
 

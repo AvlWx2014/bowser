@@ -9,19 +9,27 @@ use crate::Result;
 use futures::future::{join_all, ready};
 use futures::stream;
 use futures::stream::StreamExt;
-use ignore::gitignore::GitignoreBuilder;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::event::CreateKind;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::time::Instant;
 use tokio_stream::Stream;
+use tracing::Level;
+use tracing::{instrument, Instrument};
 
 type PinBoxStream<T> = Pin<Box<dyn Stream<Item=T> + Send>>;
 
 
+#[instrument(
+    "watch",
+    level = Level::INFO,
+    skip_all,
+    fields(root = %root.display(), ?strategy)
+)]
 pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, backends: Vec<Box<dyn BowserBackend>>) -> Result<()> {
-    println!("Watching {root:?} (config: {config:?})");
     let mut ignore = GitignoreBuilder::new(root.clone());
     // ignore Bowser sentinel files by default
     ignore.add_line(None, ".bowser.*")?;
@@ -32,6 +40,14 @@ pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, 
     let ignore = Arc::new(ignore.build()?);
     let backends = Arc::new(backends);
     let config = Arc::new(config);
+
+    tracing::info!(
+            root = %root.display(),
+            ?strategy,
+            backend_count = backends.len(),
+            ignore_pattern_count = config.bowser.ignore.len(),
+            "Executing"
+        );
 
     let (realtime, mut watcher) = realtime_event_stream(root.clone())?;
     let replay = replay_event_stream(root.clone());
@@ -65,47 +81,76 @@ pub(crate) async fn watch(config: AppConfig, root: PathBuf, strategy: Strategy, 
         Strategy::Count(n) => Box::pin(upstream.take(n))
     };
 
+    tracing::info!("Event stream composition complete");
+
+    tracing::debug!(root = %root.display(), "Starting watcher in recursive mode");
     watcher.watch(&root, RecursiveMode::Recursive)?;
+    tracing::info!("Filesystem watcher started");
 
+    tracing::info!("Starting event streaming");
     downstream.for_each_concurrent(None, |it| {
-        println!("Handling event: {it:?}");
-
         let backends = backends.clone();
         let config = config.clone();
         let ignore = ignore.clone();
 
         async move {
-            let parent = match it {
-                Sentinel::Ready(path) => {
-                    path.parent().unwrap().to_path_buf()
-                }
-                // TODO
-                _ => panic!("Unexpected Sentinel processed downstream: expected Sentinel::Ready(path)")
-            };
-
-            let uploads = backends
-                .iter()
-                .map(|backend| {
-                    let parent = parent.clone();
-                    let config = config.clone();
-                    let ignore = ignore.clone();
-                    let dry_run = config.bowser.dry_run.unwrap_or_default();
-
-                    async move {
-                        let fut = if dry_run {
-                            backend.upload_dry_run(&parent, &ignore)
-                        } else {
-                            backend.upload(&parent, &ignore)
-                        };
-                        let _ = fut.await;
-                    }
-                });
-
-            join_all(uploads).await;
+            handle(it, backends, config, ignore).await
         }
     }).await;
 
     Ok(())
+}
+
+#[instrument(
+    name = "event_handler",
+    skip_all,
+    fields(sentinel = %sentinel, tree = tracing::field::Empty)
+)]
+async fn handle(
+    sentinel: Sentinel,
+    backends: Arc<Vec<Box<dyn BowserBackend>>>,
+    config: Arc<AppConfig>,
+    ignore: Arc<Gitignore>,
+) {
+    let parent = match sentinel {
+        Sentinel::Ready(ref path) => path.parent().unwrap().to_path_buf(),
+        _ => panic!("Unexpected Sentinel processed downstream: expected Sentinel::Ready(path)")
+    };
+
+    // Record the tree field now that we have it
+    tracing::Span::current().record("tree", parent.display().to_string());
+    tracing::info!("Handling sentinel");
+
+    let dry_run = config.bowser.dry_run.unwrap_or_default();
+    let start = Instant::now();
+    let uploads = backends
+        .iter()
+        .map(|backend| {
+            let parent = parent.clone();
+            let ignore = ignore.clone();
+
+            async move {
+                let span = tracing::info_span!("backend", %backend);
+
+                async {
+                    let result = if dry_run {
+                        backend.upload_dry_run(&parent, &ignore).await
+                    } else {
+                        backend.upload(&parent, &ignore).await
+                    };
+                    if let Err(ref e) = result {
+                        tracing::error!(cause = ?e, "Error in backend upload");
+                    };
+                    result
+                }
+                    .instrument(span)
+                    .await
+                    .ok()
+            }
+        });
+
+    join_all(uploads).await;
+    tracing::info!(elapsed = ?start.elapsed(), directory = %parent.display(), backend_count = backends.len(), "Upload complete");
 }
 
 /// Tests authored by Claude Sonnet 4.5.
@@ -115,6 +160,7 @@ mod tests {
     use crate::appconfig::{AppConfig, BowserConfig};
     use async_trait::async_trait;
     use ignore::gitignore::Gitignore;
+    use std::fmt::{Display, Formatter};
     use std::sync::Mutex;
     use tempfile::TempDir;
     use tokio::fs::File;
@@ -143,6 +189,12 @@ mod tests {
 
         fn get_dry_run_uploaded(&self) -> Vec<PathBuf> {
             self.dry_run_uploaded.lock().unwrap().clone()
+        }
+    }
+
+    impl Display for MockBackend {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "MockBackend")
         }
     }
 
