@@ -24,55 +24,62 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-      - name: Setup Python (3.11)
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: "3.11"
-          architecture: x64
-      - name: Install PDM
-        run: pip install setuptools wheel pdm
-      - name: Cache Venv
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf  # v4.2.2
         with:
-          path: .venv
-          key: venv-${{ hashFiles('pdm.lock') }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            venv-
-      - name: Provision Environment
-        run: pdm install -G aws -d
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-      - name: Lint
-        run: pdm lint-check
+            ${{ runner.os }}-cargo-
+
       - name: Check Formatting
-        run: pdm check-formatting
-      - name: Type Check
-        run: pdm type-check
+        run: cargo fmt --all -- --check
+
+      - name: Lint (Clippy)
+        run: cargo check
+
       - name: Security Scan
-        run: pdm security-scan
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
   TestSuite:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-      - name: Setup Python (3.11)
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # v5.4.0
-        with:
-          python-version: "3.11"
-          architecture: x64
-      - name: Cache Venv
-        id: cache-venv
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf  # v4.2.2
         with:
-          path: .venv
-          key: venv-${{ hashFiles('pdm.lock') }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            venv-
-      - name: Install PDM
-        run: pip install setuptools wheel pdm
-      - name: Provision Environment
-        run: pdm install -G aws -d
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-      - name: Unit Tests
-        run: pdm test
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run Tests
+        run: cargo test --verbose
 
 
