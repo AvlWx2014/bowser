@@ -36,8 +36,19 @@ class Result(ABC, Generic[Out]):
     def is_failure(self) -> bool:
         return isinstance(self._value, self._Failure)
 
+    def get(self) -> Out:
+        if self.is_failure:
+            exc = self.exception()
+            raise exc
+        return self._value
+
     def get_or_none(self) -> Out | None:
         return cast(Out, self._value) if self.is_success else None
+
+    def exception(self) -> Exception:
+        if self.is_success:
+            raise TypeError("No Exception for a success Result.")
+        return cast(Result._Failure, self._value).exc
 
     def exception_or_none(self) -> Exception | None:
         # Ignore: mypy union-attr
