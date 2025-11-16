@@ -2,8 +2,6 @@ from pydantic import BaseModel
 
 from .backend.type_alias import BowserBackendConfigT
 
-DEFAULT_POLLING_INTERVAL = 1
-
 
 class BowserConfig(BaseModel, frozen=True):
     dry_run: bool = False
