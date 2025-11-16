@@ -41,7 +41,7 @@ def notify_started_compat() -> None:
 )
 @click.pass_context
 def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
-    """Warehouses your things for you, whether you like it or not."""
+    """Warehouses your things for you."""
     configure_logging(debug=debug)
     LOGGER.info("Loading configuration...")
     config = load_app_configuration()
@@ -67,7 +67,7 @@ def _validate_count(_: click.Context, __: str, value: int | None) -> int | None:
     "--dry-run",
     type=bool,
     is_flag=True,
-    help="If present, AWS calls are mocked using moto and no real upload is done.",
+    help="If present, uploads are mimicked but not actually performed.",
 )
 @click.option(
     "--strategy",

@@ -10,7 +10,7 @@ your data.
 ```text
 Usage: bowser [OPTIONS] COMMAND [ARGS]...
 
-  Warehouses your things for you, whether you like it or not.
+  Warehouses your things for you.
 
 Options:
   --debug  Enable debug logging. Warning: this may mean a lot of log output.
@@ -30,14 +30,18 @@ Usage: bowser watch [OPTIONS] DIR
   Use the sentinel file .bowser.ready to mark a tree as ready for upload.
 
 Options:
-  --dry-run            If present, AWS calls are mocked using moto and no real
-                       upload is done.
-  --strategy STRATEGY  Controls what type of event signals the watch command
-                       to stop.  [default: sentinel]
-  -n, --count INTEGER  If the 'count' watch strategy is chosen, this specifies
-                       how many completion events to wait for before stopping.
-                       Must be >= 1.
-  --help               Show this message and exit.
+  --dry-run                    If present, uploads are mimicked but not
+                               actually performed.
+  --strategy STRATEGY          Controls what type of event signals the watch
+                               command to stop.  [default: sentinel]
+  -n, --count INTEGER          If the 'count' watch strategy is chosen, this
+                               specifies how many completion events to wait
+                               for before stopping. Must be >= 1.
+  -p, --preempt-sentinel PATH  If present, this particular sentinel file will
+                               be used as a signal to abort,preempting
+                               whatever is passed for --strategy. Default:
+                               DIR/.bowser.abort
+  --help                       Show this message and exit.
 ```
 
 ## Configuration
