@@ -13,3 +13,7 @@ class BowserBackend(ABC):
     @abstractmethod
     def upload(self, source: Path) -> None:
         """Perform an 'upload' operation between ``source`` and this backend."""
+
+    @abstractmethod
+    def upload_dry_run(self, source: Path) -> None:
+        """Indicate what would be done in an 'upload' operation without actually doing it."""
