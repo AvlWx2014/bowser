@@ -12,6 +12,7 @@ from watchdog.observers import Observer as FileSystemEventLoop
 
 from bowser.backends.base import BowserBackend
 from bowser.commands.watch import CountWatchStrategy, SentinelWatchStrategy, execute
+from bowser.config.base import BowserConfig
 
 
 @pytest.fixture
@@ -46,8 +47,19 @@ def mock_observable_for_sentinel_strategy(
     )
 
 
+@pytest.fixture
+def config(request) -> BowserConfig:
+    return BowserConfig(dry_run=request.param, backends=[])
+
+
+def dry_run_ids(flag: bool) -> str:  # noqa: FBT001
+    return "dry_run" if flag else "actual"
+
+
+@pytest.mark.parametrize("config", [True, False], indirect=True, ids=dry_run_ids)
 def test_watch_command_sentinel_strategy(
     mock_tree: Path,
+    config: BowserConfig,
     mock_observable_for_sentinel_strategy: Observable[FileCreatedEvent],
     mock_watchdog_observer: FileSystemEventLoop,
 ):
@@ -61,12 +73,14 @@ def test_watch_command_sentinel_strategy(
         mock_upstream.return_value = mock_observable_for_sentinel_strategy
         execute(
             mock_tree,
+            config=config,
             backends=mock_backends,
             transform=SentinelWatchStrategy(mock_tree, sentinel=".bowser.complete"),
             preempt_sentinel=mock_tree / ".bowser.abort",
         )
     for mock_backend in mock_backends:
-        mock_backend.upload.assert_called_once_with(mock_tree / "test1")
+        target = mock_backend.upload_dry_run if config.dry_run else mock_backend.upload
+        target.assert_called_once_with(mock_tree / "test1")
 
 
 @pytest.fixture
@@ -80,8 +94,10 @@ def mock_preempted_observable_for_sentinel_strategy(
     )
 
 
+@pytest.mark.parametrize("config", [True, False], indirect=True, ids=dry_run_ids)
 def test_watch_command_preempt_sentinel_strategy(
     mock_tree: Path,
+    config: BowserConfig,
     mock_preempted_observable_for_sentinel_strategy: Observable[FileCreatedEvent],
     mock_watchdog_observer: FileSystemEventLoop,
 ):
@@ -95,12 +111,15 @@ def test_watch_command_preempt_sentinel_strategy(
         mock_upstream.return_value = mock_preempted_observable_for_sentinel_strategy
         execute(
             mock_tree,
+            config=config,
             backends=mock_backends,
             transform=SentinelWatchStrategy(mock_tree, sentinel=".bowser.complete"),
             preempt_sentinel=mock_tree / ".bowser.abort",
         )
+
     for mock_backend in mock_backends:
-        mock_backend.upload.assert_not_called()
+        target = mock_backend.upload_dry_run if config.dry_run else mock_backend.upload
+        target.assert_not_called()
 
 
 @pytest.fixture
@@ -112,8 +131,10 @@ def mock_observable_for_count_strategy(mock_tree: Path) -> Observable[FileCreate
     )
 
 
+@pytest.mark.parametrize("config", [True, False], indirect=True, ids=dry_run_ids)
 def test_watch_command_count_strategy(
     mock_tree: Path,
+    config: BowserConfig,
     mock_observable_for_count_strategy: Observable[FileCreatedEvent],
     mock_watchdog_observer: FileSystemEventLoop,
 ):
@@ -130,11 +151,13 @@ def test_watch_command_count_strategy(
         mock_upstream.return_value = mock_observable_for_count_strategy
         execute(
             mock_tree,
+            config=config,
             backends=[mock_backend],
             transform=CountWatchStrategy(n=n),
             preempt_sentinel=mock_tree / ".bowser.abort",
         )
-    assert_that(mock_backend.upload.call_count, equal_to(n))
+    target = mock_backend.upload_dry_run if config.dry_run else mock_backend.upload
+    assert_that(target.call_count, equal_to(n))
 
 
 @pytest.fixture
@@ -149,8 +172,10 @@ def mock_preempted_observable_for_count_strategy(
     )
 
 
+@pytest.mark.parametrize("config", [True, False], indirect=True, ids=dry_run_ids)
 def test_watch_command_preempt_count_strategy(
     mock_tree: Path,
+    config: BowserConfig,
     mock_preempted_observable_for_count_strategy: Observable[FileCreatedEvent],
     mock_watchdog_observer: FileSystemEventLoop,
 ):
@@ -160,11 +185,13 @@ def test_watch_command_preempt_count_strategy(
         mock_upstream.return_value = mock_preempted_observable_for_count_strategy
         execute(
             mock_tree,
+            config=config,
             backends=[mock_backend],
             transform=CountWatchStrategy(n=n),
             preempt_sentinel=mock_tree / ".bowser.abort",
         )
-    assert_that(mock_backend.upload.call_count, equal_to(1))
+    target = mock_backend.upload_dry_run if config.dry_run else mock_backend.upload
+    assert_that(target.call_count, equal_to(1))
 
 
 @pytest.fixture
@@ -178,8 +205,10 @@ def mock_preempted_observable_custom_sentinel(
     )
 
 
+@pytest.mark.parametrize("config", [True, False], indirect=True, ids=dry_run_ids)
 def test_watch_command_preempt_custom_sentinel(
     mock_tree: Path,
+    config: BowserConfig,
     mock_preempted_observable_custom_sentinel: Observable[FileCreatedEvent],
     mock_watchdog_observer: FileSystemEventLoop,
 ):
@@ -188,12 +217,14 @@ def test_watch_command_preempt_custom_sentinel(
         mock_upstream.return_value = mock_preempted_observable_custom_sentinel
         execute(
             mock_tree,
+            config=config,
             backends=mock_backends,
             transform=SentinelWatchStrategy(mock_tree, sentinel=".bowser.complete"),
             preempt_sentinel=mock_tree / "test1" / ".bowser.abort",
         )
     for mock_backend in mock_backends:
-        mock_backend.upload.assert_not_called()
+        target = mock_backend.upload_dry_run if config.dry_run else mock_backend.upload
+        target.assert_not_called()
 
 
 @pytest.fixture
@@ -212,8 +243,10 @@ def mock_external_process(mock_tree: Path) -> Thread:
     return ExternalProcess(mock_tree)
 
 
+@pytest.mark.parametrize("config", [True, False], indirect=True, ids=dry_run_ids)
 def test_watch_command_simulate_restart(
     mock_tree: Path,
+    config: BowserConfig,
     mock_external_process: Thread,
 ) -> None:
     mock_backend = MagicMock(spec=BowserBackend)
@@ -223,6 +256,7 @@ def test_watch_command_simulate_restart(
 
     execute(
         mock_tree,
+        config=config,
         backends=[mock_backend],
         transform=CountWatchStrategy(n=4),
         preempt_sentinel=mock_tree / ".bowser.abort",
@@ -230,7 +264,8 @@ def test_watch_command_simulate_restart(
     )
     mock_external_process.join(timeout=5)
 
-    mock_backend.upload.assert_has_calls(
+    target = mock_backend.upload_dry_run if config.dry_run else mock_backend.upload
+    target.assert_has_calls(
         [
             call(mock_tree / node)
             for node in ("mock_external_process", "test1", "test2", "test3")
