@@ -125,9 +125,7 @@ def watch(
         case _:
             raise RuntimeError()
 
-    with provide_BowserBackends(
-        watch_root=root, config=config, dry_run=dry_run
-    ) as backends:
+    with provide_BowserBackends(watch_root=root, config=config) as backends:
         dry_run_mode = f"dry_run mode: {'on' if dry_run else 'off'}"
         LOGGER.info(
             "Loaded the following backends (%s): %s",
@@ -137,6 +135,7 @@ def watch(
 
         commands.watch(
             root,
+            config=config,
             backends=backends,
             transform=watch_strategy,
             preempt_sentinel=preempt_sentinel or (root / ".bowser.abort"),
