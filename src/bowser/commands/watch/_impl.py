@@ -13,6 +13,7 @@ from watchdog.events import FileCreatedEvent, FileSystemEventHandler
 from watchdog.observers import Observer as FileSystemEventLoop
 
 from ...backends.base import BowserBackend
+from ...config.base import BowserConfig
 from ...extensions.watchdog import ReplayEventsObservable, WatchdogEventObservable
 from ._preempt import PreemptObservable
 from ._strategy import WatchStrategy
@@ -21,7 +22,13 @@ LOGGER = logging.getLogger("bowser")
 
 
 class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
-    def __init__(self, backends: Collection[BowserBackend], on_dispose: Event) -> None:
+    def __init__(
+        self,
+        backends: Collection[BowserBackend],
+        on_next: Callable[[Path], None],
+        on_dispose: Event,
+    ) -> None:
+        self._on_next = on_next
         self._on_dispose = on_dispose
         self._backends: Collection[BowserBackend] = backends
 
@@ -37,17 +44,7 @@ class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
         if isinstance(src, bytes):
             src = src.decode("utf-8")
         if (as_path := Path(src)).name == ".bowser.ready":
-            for backend in self._backends:
-                try:
-                    backend.upload(as_path.parent)
-                except Exception:
-                    LOGGER.exception(
-                        "Unhandled exception in upload for backend '%s'",
-                        backend.__class__.__name__,
-                    )
-                    LOGGER.info(
-                        "Will attempt other backends (if any) and continue processing events..."
-                    )
+            self._on_next(as_path.parent)
 
     def dispose(self) -> None:
         self._on_dispose.set()
@@ -55,6 +52,7 @@ class Terminus(ObserverBase[FileCreatedEvent], DisposableBase):
 
 def execute(
     root: Path,
+    config: BowserConfig,
     backends: Collection[BowserBackend],
     transform: WatchStrategy,
     preempt_sentinel: Path,
@@ -64,11 +62,28 @@ def execute(
     workers = max(cpus, 1)
     scheduler = ThreadPoolScheduler(max_workers=workers)
 
+    def broadcast(tree: Path) -> None:
+        nonlocal backends, config
+        for backend in backends:
+            target: Callable[[Path], None] = (
+                backend.upload_dry_run if config.dry_run else backend.upload
+            )
+            try:
+                target(tree)
+            except Exception:
+                LOGGER.exception(
+                    "Unhandled exception in upload for backend '%s'",
+                    backend.__class__.__name__,
+                )
+                LOGGER.info(
+                    "Will attempt other backends (if any) and continue processing events..."
+                )
+
     completed = Event()
     realtime: Observable[FileCreatedEvent] = WatchdogEventObservable()
     replay: Observable[FileCreatedEvent] = ReplayEventsObservable(root=root)
     origin: Observable[FileCreatedEvent] = realtime.pipe(ops.merge(replay))
-    terminus = Terminus(backends, on_dispose=completed)
+    terminus = Terminus(backends, on_next=broadcast, on_dispose=completed)
 
     origin.pipe(
         ops.subscribe_on(scheduler),
