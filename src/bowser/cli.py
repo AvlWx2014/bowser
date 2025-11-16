@@ -1,5 +1,4 @@
 import logging
-import sys
 from pathlib import Path
 from typing import cast
 
@@ -15,6 +14,7 @@ from bowser.commands.watch import (
 )
 from bowser.config.base import BowserConfig
 from bowser.config.loader import load_app_configuration
+from bowser.deforestation import configure_logging
 
 pass_config = click.make_pass_decorator(BowserConfig, ensure=True)
 
@@ -42,12 +42,7 @@ def notify_started_compat() -> None:
 @click.pass_context
 def bowser(ctx: click.Context, debug: bool) -> None:  # noqa: FBT001
     """Warehouses your things for you, whether you like it or not."""
-    logging.basicConfig(
-        stream=sys.stdout,
-        level=logging.DEBUG if debug else logging.INFO,
-        format="%(asctime)s %(levelname)-8s %(name)s (%(threadName)s) %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S%z",
-    )
+    configure_logging(debug=debug)
     LOGGER.info("Loading configuration...")
     config = load_app_configuration()
     defaults = {
