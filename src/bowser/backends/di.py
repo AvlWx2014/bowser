@@ -27,6 +27,7 @@ def provide_BowserBackends(  # noqa: N802
         match backend_config:
             case AwsS3BowserBackendConfig():
                 provider = provide_S3Client(backend_config)
+                closeables.append(provider)
                 backends.append(
                     AwsS3Backend(
                         watch_root=watch_root,
@@ -47,8 +48,8 @@ def provide_BowserBackends(  # noqa: N802
 
 def provide_S3Client(  # noqa: N802
     config: AwsS3BowserBackendConfig,
-) -> Generator["S3ServiceResource", None, None]:
-    yield boto3.resource(
+) -> Generator["S3ServiceResource", _CLOSE_T, None]:
+    s3 = boto3.resource(
         "s3",
         region_name=config.region,
         aws_access_key_id=config.access_key_id.get_secret_value(),
@@ -56,3 +57,4 @@ def provide_S3Client(  # noqa: N802
         use_ssl=True,
         verify=True,
     )
+    _ = yield s3
