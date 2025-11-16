@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import boto3
-from moto import mock_aws
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3ServiceResource
@@ -20,14 +19,14 @@ _CLOSE: _CLOSE_T = "close"
 
 @contextmanager
 def provide_BowserBackends(  # noqa: N802
-    watch_root: Path, config: BowserConfig, dry_run: bool  # noqa: FBT001
+    watch_root: Path, config: BowserConfig
 ) -> Generator[Collection[BowserBackend], None, None]:
     backends: MutableSequence[BowserBackend] = []
     closeables: MutableSequence[Generator[Any, _CLOSE_T, None]] = []
     for backend_config in config.backends:
         match backend_config:
             case AwsS3BowserBackendConfig():
-                provider = provide_S3Client(backend_config, dry_run)
+                provider = provide_S3Client(backend_config)
                 backends.append(
                     AwsS3Backend(
                         watch_root=watch_root,
@@ -47,34 +46,13 @@ def provide_BowserBackends(  # noqa: N802
 
 
 def provide_S3Client(  # noqa: N802
-    config: AwsS3BowserBackendConfig, dry_run: bool  # noqa: FBT001
+    config: AwsS3BowserBackendConfig,
 ) -> Generator["S3ServiceResource", None, None]:
-    kwargs = {
-        "region_name": config.region,
-        "aws_access_key_id": config.access_key_id.get_secret_value(),
-        "aws_secret_access_key": config.secret_access_key.get_secret_value(),
-        "use_ssl": True,
-        "verify": True,
-    }
-
-    if dry_run:
-        with mock_aws():
-            s3 = boto3.resource("s3", **kwargs)  # type: ignore[call-overload]
-            for bucket in config.buckets:
-                s3bucket = s3.Bucket(bucket.name)
-                kwargs = {}
-                if config.region != "us-east-1":
-                    # turns out that us-east-1 is not a valid location constraint region,
-                    # so only pass this on if we're not working in us-east-1
-                    kwargs["CreateBucketConfiguration"] = {
-                        "LocationConstraint": config.region
-                    }
-                s3bucket.create(**kwargs)
-            # this has to remain here, so we remain within the context of moto while the rest
-            # of the program executes
-            # moving this call outside of this `with` block means mocking by moto stops before
-            # we yield the client back to the caller
-            yield s3
-    else:
-        s3 = boto3.resource("s3", **kwargs)  # type: ignore[call-overload]
-        yield s3
+    yield boto3.resource(
+        "s3",
+        region_name=config.region,
+        aws_access_key_id=config.access_key_id.get_secret_value(),
+        aws_secret_access_key=config.secret_access_key.get_secret_value(),
+        use_ssl=True,
+        verify=True,
+    )
