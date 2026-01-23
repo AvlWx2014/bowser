@@ -35,10 +35,11 @@ pub(crate) async fn watch(
     strategy: Strategy,
     backends: Vec<Box<dyn BowserBackend>>,
 ) -> Result<()> {
+    let ignored = config.bowser.ignore.clone().unwrap_or_default();
     let mut ignore = GitignoreBuilder::new(root.clone());
     // ignore Bowser sentinel files by default
     ignore.add_line(None, ".bowser.*")?;
-    for pattern in config.bowser.ignore.clone() {
+    for pattern in ignored {
         ignore.add_line(None, &pattern)?;
     }
 
@@ -50,7 +51,7 @@ pub(crate) async fn watch(
         root = %root.display(),
         ?strategy,
         backend_count = backends.len(),
-        ignore_pattern_count = config.bowser.ignore.len(),
+        ignore_pattern_count = ignore.len(),
         "Executing"
     );
 
@@ -216,7 +217,7 @@ mod tests {
             bowser: BowserConfig {
                 dry_run: Some(dry_run),
                 backends: vec![],
-                ignore: vec![],
+                ignore: None,
             },
         }
     }

@@ -15,7 +15,7 @@ pub(crate) struct BowserConfig {
     pub(crate) backends: Vec<BackendConfig>,
     /// A set of .gitignore-style patterns that should be ignored during upload.
     /// By default, all Bowser sentinel files are ignored (.bowser.*).
-    pub(crate) ignore: Vec<String>,
+    pub(crate) ignore: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
