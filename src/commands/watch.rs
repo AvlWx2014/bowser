@@ -15,6 +15,7 @@ use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::fs::File;
 use tokio::time::Instant;
 use tokio_stream::Stream;
 use tracing::Level;
@@ -77,6 +78,8 @@ pub(crate) async fn watch(
     tracing::debug!(root = %root.display(), "Starting watcher in recursive mode");
     watcher.watch(&root, RecursiveMode::Recursive)?;
     tracing::info!("Filesystem watcher started");
+
+    File::create("/tmp/.bowser.started").await?;
 
     tracing::info!("Starting event streaming");
     downstream

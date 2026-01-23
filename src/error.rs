@@ -19,6 +19,9 @@ pub(crate) enum Error {
 
     #[from(ignore::Error)]
     PathMatching,
+
+    #[from(std::io::Error)]
+    Io,
 }
 
 impl Display for Error {
