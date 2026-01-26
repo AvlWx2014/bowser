@@ -1,11 +1,56 @@
 use crate::Result;
+use config::Config;
 use sec::Secret;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use xdg::BaseDirectories;
+
+const BOWSER_DRY_RUN: &str = "bowser.dry_run";
+
+pub(crate) fn config_root() -> PathBuf {
+    let base = BaseDirectories::new();
+    base.config_home
+        .expect("Could not find home directory: is $HOME not set?")
+}
+
+#[derive(Default)]
+pub(crate) struct ConfigOverrides {
+    pub dry_run: Option<bool>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct AppConfig {
     pub(crate) bowser: BowserConfig,
+}
+
+impl AppConfig {
+    fn parser(sources: &[PathBuf], overrides: ConfigOverrides) -> Result<Config> {
+        let mut builder = Config::builder();
+        for source in sources {
+            builder = builder
+                .add_source(config::File::with_name(source.to_str().unwrap()).required(false));
+        }
+
+        Ok(builder
+            .set_override_option(BOWSER_DRY_RUN, overrides.dry_run)?
+            .build()?)
+    }
+
+    pub fn try_load(
+        from: Option<Vec<PathBuf>>,
+        overrides: Option<ConfigOverrides>,
+    ) -> Result<AppConfig> {
+        let sources = from.unwrap_or_else(|| {
+            let config_root = config_root();
+            vec![
+                PathBuf::from("/etc/bowser/config.toml"),
+                PathBuf::from(config_root.join("bowser/config.toml").to_str().unwrap()),
+            ]
+        });
+        let overrides = overrides.unwrap_or_default();
+        let parser = AppConfig::parser(&sources, overrides)?;
+        Ok(parser.try_deserialize()?)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

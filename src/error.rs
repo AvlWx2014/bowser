@@ -22,6 +22,9 @@ pub(crate) enum Error {
 
     #[from(std::io::Error)]
     Io,
+
+    #[from(config::ConfigError)]
+    Config,
 }
 
 impl Display for Error {
