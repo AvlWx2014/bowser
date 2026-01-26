@@ -11,19 +11,16 @@ mod sentinel;
 mod strategy;
 
 pub(crate) use self::error::Result;
-use crate::appconfig::{AppConfig, BackendConfig};
+use crate::appconfig::{AppConfig, BackendConfig, ConfigOverrides};
 use crate::backends::aws::AwsS3Backend;
 use crate::backends::BowserBackend;
 use crate::cli::Commands;
 use clap::Parser;
 use commands::watch::watch;
-use config::Config;
-use std::path::PathBuf;
 use std::process;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use xdg::BaseDirectories;
 
 #[derive(Parser)]
 #[command(
@@ -36,12 +33,6 @@ struct Cli {
     dry_run: Option<bool>,
     #[command(subcommand)]
     command: Commands,
-}
-
-fn config_root() -> PathBuf {
-    let base = BaseDirectories::new();
-    base.config_home
-        .expect("Could not find home directory: is $HOME not set?")
 }
 
 #[tokio::main]
@@ -61,18 +52,10 @@ async fn main() {
         .init();
 
     let cli = Cli::parse();
-    let config_root = config_root();
-    let parser = Config::builder()
-        .add_source(config::File::with_name("/etc/bowser/config.toml").required(false))
-        .add_source(config::File::with_name(
-            config_root.join("bowser/config.toml").to_str().unwrap(),
-        ))
-        .set_override_option("bowser.dry_run", cli.dry_run)
-        .expect("Fatal: failed to override dry_run configuration with --dry-run.")
-        .build()
-        .expect("Failed to parse app configuration");
-
-    let config: AppConfig = match parser.try_deserialize() {
+    let overrides = ConfigOverrides {
+        dry_run: cli.dry_run,
+    };
+    let config: AppConfig = match AppConfig::try_load(None, Some(overrides)) {
         Ok(config) => config,
         Err(err) => {
             tracing::error!(cause = ?err, "Failed to parse application configuration");
