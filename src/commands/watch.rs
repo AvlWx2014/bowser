@@ -39,6 +39,8 @@ pub(crate) async fn watch(
     let mut ignore = GitignoreBuilder::new(root.clone());
     // ignore Bowser sentinel files by default
     ignore.add_line(None, ".bowser.*")?;
+    // ignore sidecar metadata files by default
+    ignore.add_line(None, ".*.metadata")?;
     for pattern in ignored {
         ignore.add_line(None, &pattern)?;
     }
