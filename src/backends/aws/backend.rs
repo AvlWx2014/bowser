@@ -3,7 +3,7 @@ use crate::appconfig::{BackendConfig, Bucket};
 use crate::backends::aws::Error::{ChecksumMismatch, MissingChecksum, S3ByteStreamCreationFailed};
 use crate::backends::base::BowserBackend;
 use crate::backends::Result as BackendResult;
-use crate::checksum;
+use crate::{checksum, mime};
 use async_trait::async_trait;
 use aws_config::{Region, SdkConfig};
 use aws_credential_types::provider::SharedCredentialsProvider;
@@ -392,6 +392,7 @@ impl AwsS3Backend {
     )]
     async fn put_object(&self, bucket: &Bucket, key: String, source: PathBuf) -> Result<()> {
         let client = self.client.clone();
+        let content_type = mime::resolve(&source).await;
         let checksum = checksum::sha256(&source).await?;
         let body =
             ByteStream::from_path(&source)
@@ -405,6 +406,7 @@ impl AwsS3Backend {
             .bucket(bucket.name.clone())
             .key(&key)
             .body(body)
+            .content_type(content_type)
             .checksum_algorithm(ChecksumAlgorithm::Sha256)
             .send()
             .await?;

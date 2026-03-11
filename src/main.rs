@@ -5,6 +5,7 @@ mod cli;
 mod commands;
 mod distinct;
 mod error;
+mod mime;
 mod realtime;
 mod replay;
 mod sentinel;
