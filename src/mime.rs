@@ -75,23 +75,11 @@ async fn from_sidecar(path: &Path) -> Option<String> {
 }
 
 async fn from_content(path: &Path) -> Option<String> {
-    let mut file = match tokio::fs::File::open(path).await {
-        Ok(f) => f,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to open file for content-based MIME detection.");
-            return None;
-        }
-    };
-    // Many magic numbers fall well within the first 32 bytes of a file
-    let mut buf = [0u8; 32];
-    let n = match tokio::io::AsyncReadExt::read(&mut file, &mut buf).await {
-        Ok(n) => n,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to read file for content-based MIME detection.");
-            return None;
-        }
-    };
-    infer::get(&buf[..n]).map(|t| t.mime_type().to_string())
+    infer::get_from_path(path)
+        .inspect_err(|it| tracing::error!(cause = ?it, "Error inferring MIME type from content based on magic number bytes."))
+        .ok()
+        .flatten()
+        .map(|it| it.mime_type().to_string())
 }
 
 fn from_extension(path: &Path) -> Option<String> {
