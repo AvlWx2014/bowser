@@ -194,6 +194,57 @@ For each bucket the bucket `prefix` field is added as an additional prefix prepe
 before upload. In other words, you can use `prefix` to specify that content should go under a certain 
 prefix in the target bucket.
 
+#### Content Type
+
+The AWS S3 API allows clients to specify a `Content-Type` header on requests that add objects to a bucket. This can 
+be useful, for example, when objects are served through a file server backed by your S3 bucket. If S3 knows the 
+advertised content type, then your CDN frontend and browser can work together to make decisions on whether to open 
+an object in your browser, or download it by default.
+
+There are several ways to set the content type for objects uploaded to S3 by Bowser:
+
+*Metadata Sidecar*
+
+Applications can specify the content type for objects uploaded through Bowser by adding a metadata sidecar file 
+alongside the object in the filesystem. The metadata sidecar is a hidden file on Linux that shares the same base 
+name as the file it describes, plus the suffix `.metadata`.
+
+For example, to specify content type for an object named `report.yml`, a metadata sidecar can be added as a sibling 
+to `report.yml` named `.report.yml.metadata`.
+
+Metadata sidecars are JSON-encoded files with the following structure:
+
+```text
+{"mime_type": string}
+```
+
+To continue the example from above, the metadata sidecar for `report.yml` named `.report.yml.metadata` would contain:
+
+```json
+{"mime_type": "application/yaml"}
+```
+
+*From Content*
+
+If a metadata sidecar is not present, Bowser will fall back to trying to detect the media type from the primary 
+content.
+
+The first layer of detection is based on the file contents looking for known magic numbers.
+
+Thanks to the [infer](https://docs.rs/infer/latest/infer/) crate for providing this functionality.
+
+*From File Extension*
+
+If a media type cannot be guessed based on the primary file contents, then Bowser falls back to guessing the media 
+type based on the file extension.
+
+Rather than maintaining its own database of known MIME types and corresponding file extensions Bowser leverages 
+the [mime_guess](https://docs.rs/mime_guess/latest/mime_guess/) crate.
+
+*Default Value*
+
+If everything else fails, then Bowser defaults to a content type of `application/octet-stream` for S3.
+
 #### Implementation Details
 
 * The key for any object that is uploaded includes any ancestor in the path from the watch directory `DIR` 
