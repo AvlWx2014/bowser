@@ -1,4 +1,4 @@
-FROM quay.io/automotive-toolchain/rust:1.94.0 as builder
+FROM quay.io/automotive-toolchain/rust:1.94.0 AS builder
 WORKDIR /app
 COPY . .
 RUN cargo build --release
